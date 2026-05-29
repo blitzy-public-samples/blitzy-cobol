@@ -95,13 +95,22 @@
 
         The reactor lists ONLY the sub-modules that physically exist on the branch
         so that `mvn validate`, `mvn clean package` and `mvn test` always succeed
-        from the repository root. The Java translation is delivered incrementally,
-        one topic at a time; each new sub-module is appended here in the same change
-        that adds its directory and POM. The full target set of eleven topics is
-        documented in the root README. Currently translated topics: sort, string,
-        struct.
+        from the repository root, and so that root-scoped builds such as
+        `mvn -pl cobol-sqlite,cobol-random,cobol-memory,cobol-loops,cobol-date -am compile`
+        resolve every processed module in the reactor. The Java translation is
+        delivered incrementally, one topic at a time; each new sub-module is
+        appended here in the same change that adds its directory and POM. The full
+        target set of eleven topics is documented in the root README. Currently
+        translated topics (in this reactor): date, loops, memory, random, sqlite,
+        sort, string, struct. The remaining target topics (helloworld, conditions,
+        database) will be appended here as each is translated.
     -->
     <modules>
+        <module>cobol-date</module>
+        <module>cobol-loops</module>
+        <module>cobol-memory</module>
+        <module>cobol-random</module>
+        <module>cobol-sqlite</module>
         <module>cobol-sort</module>
         <module>cobol-string</module>
         <module>cobol-struct</module>
@@ -111,8 +120,12 @@
         Only the SQLite JDBC driver needs a managed version here; every other
         dependency (Spring Boot starters, JUnit Jupiter, AssertJ, Mockito) is
         already governed by the spring-boot-dependencies BOM inherited via the
-        parent. Child modules that require SQLite (only cobol-sqlite) declare the
-        dependency without a <version> element so this managed version applies.
+        parent. This dependencyManagement entry records the canonical sqlite-jdbc
+        version (${sqlite-jdbc.version}) centrally. The only consumer, cobol-sqlite,
+        ALSO declares the dependency with an explicit <version>3.53.1.0</version>
+        in its own POM (per the AAP / checkpoint requirement that the child
+        dependency block state the exact version); that explicit child version and
+        this managed version are intentionally kept identical.
     -->
     <dependencyManagement>
         <dependencies>

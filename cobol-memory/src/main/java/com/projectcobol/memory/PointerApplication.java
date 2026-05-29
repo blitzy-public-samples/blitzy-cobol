@@ -19,9 +19,11 @@
 
 package com.projectcobol.memory;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
  * Java 21 / Spring Boot 3.x translation of {@code OpenCobol/Memory/Pointer.cbl}
@@ -74,7 +76,20 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * {@code PROGRAM-ID. WORK-WITH-POINTER.}). The filesystem name is the authoritative
  * identifier.
  */
+// One-program-one-class fidelity: each OpenCobol/Memory/*.cbl program is
+// translated to its own @SpringBootApplication entry class. The cobol-memory
+// module hosts two entry classes in package com.projectcobol.memory
+// (PointerApplication and AddressApplication; AddressApplication is the pinned
+// default mainClass and arrives with a later checkpoint). @SpringBootApplication's
+// default @ComponentScan would discover the sibling memory application (a
+// @Configuration + CommandLineRunner) and run it together in the same JVM,
+// corrupting this program's stdout. Disabling the default component-scan filters
+// means this application registers ONLY itself (the primary source handed to
+// SpringApplication.run), so exactly one COBOL memory translation executes per
+// invocation - preserving the one-.cbl-one-class invariant when AddressApplication
+// is added.
 @SpringBootApplication
+@ComponentScan(useDefaultFilters = false)
 public class PointerApplication implements CommandLineRunner {
 
     /**
@@ -124,10 +139,21 @@ public class PointerApplication implements CommandLineRunner {
      * Standard Spring Boot entry point. Bootstraps the Spring application context
      * and invokes {@link #run(String...)} via the {@link CommandLineRunner} contract.
      *
+     * <p>The Spring Boot banner and startup/profile logging are disabled via
+     * {@link Banner.Mode#OFF} and
+     * {@link SpringApplication#setLogStartupInfo(boolean)} so the executable jar
+     * emits ONLY the COBOL-translated stdout (no banner, no {@code Starting…}/
+     * {@code No active profile set}/{@code Started…} INFO lines), keeping the
+     * documented {@code java -jar} run golden-output-clean for this educational
+     * sample.
+     *
      * @param args command-line arguments (unused in this educational sample)
      */
     public static void main(String[] args) {
-        SpringApplication.run(PointerApplication.class, args);
+        SpringApplication app = new SpringApplication(PointerApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

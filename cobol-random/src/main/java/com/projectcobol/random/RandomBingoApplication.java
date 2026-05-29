@@ -20,9 +20,11 @@ package com.projectcobol.random;
 
 import java.util.Random;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
  * Spring Boot translation of {@code OpenCobol/Random/RandomBingo.cbl}
@@ -50,7 +52,18 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * constructor accepting a fixed {@code long} seed enables byte-exact
  * golden-output testing without exposing the {@link Random} field.
  */
+// One-program-one-class fidelity: each OpenCobol/Random/*.cbl program is
+// translated to its own @SpringBootApplication entry class, and both random
+// classes (RandomBingoApplication, RandomNumbersApplication) share the package
+// com.projectcobol.random (per the AAP package rule). @SpringBootApplication's
+// default @ComponentScan would otherwise discover the sibling random application
+// (a @Configuration + CommandLineRunner) and run it together in the same JVM,
+// corrupting this program's stdout with the sibling's output. Disabling the
+// default component-scan filters means this application registers ONLY itself
+// (the primary source handed to SpringApplication.run), so exactly one COBOL
+// random translation executes per invocation.
 @SpringBootApplication
+@ComponentScan(useDefaultFilters = false)
 public class RandomBingoApplication implements CommandLineRunner {
 
     /** COBOL: {@code 78 W-LEN-ARR VALUE 100.} */
@@ -83,12 +96,23 @@ public class RandomBingoApplication implements CommandLineRunner {
     }
 
     /**
-     * JVM entry point delegating to {@link SpringApplication#run(Class, String...)}.
+     * JVM entry point. Builds a {@link SpringApplication} with the Spring Boot
+     * banner and startup/profile logging disabled, then runs it. Disabling
+     * {@link Banner.Mode#OFF the banner} and
+     * {@link SpringApplication#setLogStartupInfo(boolean) startup info} suppresses
+     * the ASCII-art banner and the {@code Starting…}/{@code No active profile set}/
+     * {@code Started…} INFO lines, so the executable jar emits ONLY the
+     * COBOL-translated stdout. This keeps the documented {@code java -jar} run
+     * golden-output-clean for this educational sample while preserving the
+     * {@link CommandLineRunner} lifecycle.
      *
      * @param args command-line arguments forwarded to the Spring application context
      */
     public static void main(String[] args) {
-        SpringApplication.run(RandomBingoApplication.class, args);
+        SpringApplication app = new SpringApplication(RandomBingoApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

@@ -19,6 +19,7 @@
 
 package com.projectcobol.date;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -77,16 +78,25 @@ import java.time.format.DateTimeFormatter;
 public class DateAndTimeApplication implements CommandLineRunner {
 
     /**
-     * Spring Boot bootstrap entry point. Delegates to
-     * {@link SpringApplication#run(Class, String[])}, which constructs the
-     * application context and invokes every {@link CommandLineRunner} bean,
-     * including this class's {@link #run(String...)} method.
+     * Spring Boot bootstrap entry point. Builds a {@link SpringApplication} for
+     * this class with the Spring Boot banner and startup/profile logging disabled
+     * (via {@link Banner.Mode#OFF} and
+     * {@link SpringApplication#setLogStartupInfo(boolean)}), then runs it. This
+     * suppresses the ASCII-art banner and the {@code Starting…}/
+     * {@code No active profile set}/{@code Started…} INFO lines so the executable
+     * jar emits ONLY the COBOL-translated stdout, keeping the documented
+     * {@code java -jar} run golden-output-clean. The {@link CommandLineRunner}
+     * lifecycle (which invokes this class's {@link #run(String...)} method) is
+     * preserved unchanged.
      *
      * @param args command-line arguments forwarded to Spring Boot (unused by
      *             this translation, but required by the Spring Boot contract)
      */
     public static void main(String[] args) {
-        SpringApplication.run(DateAndTimeApplication.class, args);
+        SpringApplication app = new SpringApplication(DateAndTimeApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

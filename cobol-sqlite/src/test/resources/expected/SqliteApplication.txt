@@ -1,3 +1,4 @@
+1 <RANDOMBLOB> <DATETIME> 2 something <JULIANDAY> 3 <RANDOMBLOB> <DATETIME> 4 something <JULIANDAY>
 |4|
 |something|
 |<JULIANDAY>|
