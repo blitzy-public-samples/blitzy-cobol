@@ -19,10 +19,9 @@
 
 package com.projectcobol.loops;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -43,32 +42,36 @@ import java.nio.charset.StandardCharsets;
  *
  * <p>Per AAP &sect;0.7.2 (minimal-change clause), this class is fully
  * self-contained &mdash; no shared base classes, no helper utilities, no shared
- * fixture loaders. The output-capture boilerplate is duplicated verbatim in
- * {@link WhileApplicationTest}; this duplication is intentional and required.
+ * fixture loaders. Output capture uses the inline redirection pattern (a
+ * {@code try}/{@code finally} inside the test method, matching the cobol-sort
+ * tests) rather than shared {@code @BeforeEach}/{@code @AfterEach} hooks. The
+ * output-capture boilerplate is duplicated verbatim in {@link WhileApplicationTest};
+ * this duplication is intentional and required.
  */
 class ForLoopApplicationTest {
 
-    private final PrintStream originalOut = System.out;
-    private ByteArrayOutputStream captured;
-
-    @BeforeEach
-    void redirectStdout() {
-        captured = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(captured, true, StandardCharsets.UTF_8));
-    }
-
-    @AfterEach
-    void restoreStdout() {
-        System.setOut(originalOut);
-    }
-
     @Test
     void outputMatchesGoldenFixture() throws Exception {
-        new ForLoopApplication().run();
+        // Inline output-redirection pattern (matching the cobol-sort tests):
+        // redirect System.out only for the duration of run(), and always restore
+        // the original stream in finally so a failure cannot leak the redirected
+        // stream into sibling tests.
+        PrintStream originalOut = System.out;
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(captured, true, StandardCharsets.UTF_8));
+        try {
+            new ForLoopApplication().run();
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        // Normalize CRLF -> LF on both sides so the 331-line fixture comparison is
+        // platform-independent.
         String actual = captured.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
         String expected;
         try (InputStream in = getClass().getClassLoader()
                 .getResourceAsStream("expected/ForLoopApplication.txt")) {
+            assertNotNull(in, "Missing fixture expected/ForLoopApplication.txt");
             expected = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
         assertEquals(expected, actual);

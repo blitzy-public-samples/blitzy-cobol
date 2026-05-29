@@ -21,6 +21,7 @@ package com.projectcobol.sort;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -46,6 +47,7 @@ class InsertSortApplicationTest {
         String expected;
         try (InputStream in = getClass().getClassLoader()
                 .getResourceAsStream("expected/InsertSortApplication.txt")) {
+            assertNotNull(in, "Missing fixture expected/InsertSortApplication.txt");
             expected = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
         assertEquals(expected, actual);

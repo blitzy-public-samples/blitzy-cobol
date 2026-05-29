@@ -30,6 +30,7 @@ import java.io.InputStreamReader;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -87,13 +88,16 @@ class DateAndTimeApplicationTest {
         String capturedText = this.capturedOutput.toString(StandardCharsets.UTF_8);
         String[] capturedLines = capturedText.split("\\R", -1);
 
-        // Drop the trailing empty element introduced by a final line terminator
-        // (System.out.println appends a line separator after the last DISPLAY line).
-        List<String> nonEmptyCapturedLines = new ArrayList<>();
-        for (String line : capturedLines) {
-            if (!line.isEmpty()) {
-                nonEmptyCapturedLines.add(line);
-            }
+        // Drop ONLY the final trailing empty element introduced by the terminal
+        // line separator that System.out.println appends after the last DISPLAY
+        // line. Interior empty lines are deliberately preserved so an unexpected
+        // blank line in the middle of the output is caught by the size + per-line
+        // regex assertions below rather than being silently filtered away (which
+        // would weaken the golden-output protection).
+        List<String> capturedLineList = new ArrayList<>(Arrays.asList(capturedLines));
+        if (!capturedLineList.isEmpty()
+                && capturedLineList.get(capturedLineList.size() - 1).isEmpty()) {
+            capturedLineList.remove(capturedLineList.size() - 1);
         }
 
         // Load the regex fixture from the classpath.
@@ -101,15 +105,15 @@ class DateAndTimeApplicationTest {
 
         assertEquals(
             expectedRegexLines.size(),
-            nonEmptyCapturedLines.size(),
+            capturedLineList.size(),
             "Expected " + expectedRegexLines.size()
                 + " stdout lines from DateAndTimeApplication, but captured "
-                + nonEmptyCapturedLines.size() + ":\n" + capturedText
+                + capturedLineList.size() + ":\n" + capturedText
         );
 
         for (int i = 0; i < expectedRegexLines.size(); i++) {
             String regex = expectedRegexLines.get(i);
-            String captured = nonEmptyCapturedLines.get(i);
+            String captured = capturedLineList.get(i);
             assertTrue(
                 captured.matches(regex),
                 "Line " + (i + 1) + " did not match expected regex.\n"

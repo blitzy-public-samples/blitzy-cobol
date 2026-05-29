@@ -22,6 +22,7 @@ package com.projectcobol.database;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 /**
  * Java 21 / Spring Boot 3.x translation of
@@ -46,7 +47,21 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * {@code StatusCodeApplication}) rather than the COBOL {@code PROGRAM-ID}
  * ({@code STATUS-CODE}).
  */
+// Multi-application isolation: cobol-database hosts four @SpringBootApplication
+// entry classes in the same package com.projectcobol.database (one per COBOL
+// program in OpenCobol/Database/), all sharing a single fat-jar. A bare
+// @SpringBootApplication enables a default @ComponentScan that would discover the
+// other three sibling applications (each is itself a @Configuration via
+// @SpringBootApplication and a CommandLineRunner) and run ALL of their run(...)
+// methods in the same JVM, polluting stdout and breaking the byte-for-byte
+// golden-output contract. Disabling the default component-scan filters with
+// @ComponentScan(useDefaultFilters = false) means booting this class registers and
+// runs ONLY itself (the primary source handed to SpringApplication.run), so exactly
+// one COBOL Database translation executes per invocation. This mirrors the
+// established convention used by the other multi-application sub-modules
+// (cobol-conditions, cobol-loops, cobol-memory, cobol-random, cobol-sort).
 @SpringBootApplication
+@ComponentScan(useDefaultFilters = false)
 public class StatusCodeApplication implements CommandLineRunner {
 
     /**
