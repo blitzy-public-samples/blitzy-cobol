@@ -19,6 +19,7 @@
 
 package com.projectcobol.conditions;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -140,7 +141,10 @@ public class EvaluteVerbApplication implements CommandLineRunner {
      *             translation, but required by the Spring Boot contract)
      */
     public static void main(String[] args) {
-        SpringApplication.run(EvaluteVerbApplication.class, args);
+        SpringApplication app = new SpringApplication(EvaluteVerbApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

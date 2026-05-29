@@ -19,6 +19,7 @@
 
 package com.projectcobol.sort;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -170,7 +171,10 @@ public class SelectSortApplication implements CommandLineRunner {
      * @param args command-line arguments forwarded to Spring Boot (unused)
      */
     public static void main(String[] args) {
-        SpringApplication.run(SelectSortApplication.class, args);
+        SpringApplication app = new SpringApplication(SelectSortApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Scanner;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -137,7 +138,10 @@ public class SqliteApplication implements CommandLineRunner {
      * @param args command-line arguments forwarded to Spring Boot
      */
     public static void main(String[] args) {
-        SpringApplication.run(SqliteApplication.class, args);
+        SpringApplication app = new SpringApplication(SqliteApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

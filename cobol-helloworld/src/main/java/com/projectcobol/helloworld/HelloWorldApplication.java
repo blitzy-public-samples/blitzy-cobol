@@ -18,6 +18,7 @@
  */
 package com.projectcobol.helloworld;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -26,7 +27,10 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class HelloWorldApplication implements CommandLineRunner {
 
     public static void main(String[] args) {
-        SpringApplication.run(HelloWorldApplication.class, args);
+        SpringApplication app = new SpringApplication(HelloWorldApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     @Override

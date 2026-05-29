@@ -19,6 +19,7 @@
 
 package com.projectcobol.string;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -72,7 +73,10 @@ public class StringApplication implements CommandLineRunner {
      *             this translation, but required by the Spring Boot contract)
      */
     public static void main(String[] args) {
-        SpringApplication.run(StringApplication.class, args);
+        SpringApplication app = new SpringApplication(StringApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**

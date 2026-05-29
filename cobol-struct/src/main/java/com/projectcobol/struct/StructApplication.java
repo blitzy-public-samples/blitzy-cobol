@@ -19,6 +19,7 @@
 
 package com.projectcobol.struct;
 
+import org.springframework.boot.Banner;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -83,7 +84,10 @@ public class StructApplication implements CommandLineRunner {
      *             this translation, but required by the Spring Boot contract)
      */
     public static void main(String[] args) {
-        SpringApplication.run(StructApplication.class, args);
+        SpringApplication app = new SpringApplication(StructApplication.class);
+        app.setBannerMode(Banner.Mode.OFF);
+        app.setLogStartupInfo(false);
+        app.run(args);
     }
 
     /**
