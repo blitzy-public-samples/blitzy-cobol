@@ -49,11 +49,9 @@
         and StatusCode. Includes a FileStatus enum encoding the 30 COBOL FILE-STATUS
         codes from StatusCode.cbl. The file-reading translations load the data.txt
         fixture from the classpath via ClassLoader.getResourceAsStream rather than
-        the COBOL relative path. The four entry classes share the single fat-jar
-        cobol-database-1.0.0.jar; the default mainClass is OpenFileRecordKeyApplication.
-        Use -Dloader.main=com.projectcobol.database.OpenFileSequentialApplication
-        (or SequentialReadApplication, or StatusCodeApplication) to run a non-default
-        entry class.
+        the COBOL relative path. The four entry classes are co-equal with no single
+        default; this module pins no mainClass and is built as a plain library JAR
+        (see the build section below for the rationale).
     </description>
 
     <!--
@@ -82,27 +80,22 @@
     </dependencies>
 
     <!--
-        finalName fixes the executable artifact path to
-        target/cobol-database-1.0.0.jar so the documented run command
-        (java -jar cobol-database/target/cobol-database-1.0.0.jar) works. The
+        finalName fixes the build artifact path to target/cobol-database-1.0.0.jar
+        (identical to the default ${project.artifactId}-${project.version}). The
         spring-boot-maven-plugin is referenced without a version (managed by the
         parent) and without an executions block (the repackage goal is already
-        bound in the parent's pluginManagement). This module has four
-        @SpringBootApplication entry classes, so mainClass is pinned to the
-        alphabetically-first one (OpenFileRecordKeyApplication). This gives the
-        fat-jar a single, deterministic default Start-Class and avoids the repackage
-        failure that occurs when multiple main classes are found.
+        bound in the parent's pluginManagement).
 
-        layout=ZIP packages the jar with Spring Boot's PropertiesLauncher as the
-        Main-Class (instead of the default JarLauncher). PropertiesLauncher honours
-        the loader.main system property, so the three non-default entry classes can
-        be selected at run time from the shared cobol-database-1.0.0.jar:
-            java -Dloader.main=com.projectcobol.database.OpenFileSequentialApplication -jar ...
-            java -Dloader.main=com.projectcobol.database.SequentialReadApplication -jar ...
-            java -Dloader.main=com.projectcobol.database.StatusCodeApplication -jar ...
-        Without -Dloader.main, PropertiesLauncher falls back to the manifest
-        Start-Class (OpenFileRecordKeyApplication). These run commands are documented
-        in the root README.
+        DELIBERATE: this module configures no Spring Boot main class. cobol-database
+        hosts four co-equal @SpringBootApplication entry classes (OpenFileRecordKey,
+        OpenFileSequential, SequentialRead, StatusCode) with no single natural
+        default, so designating any one of them as the Start-Class would be
+        arbitrary. Spring Boot's repackage goal requires exactly one main class to
+        build an executable fat-jar; rather than pin an arbitrary default, the
+        repackage goal is skipped here (skip=true) and this module is built as a
+        plain (non-executable) library JAR. Its reusable artifacts are the
+        FileStatus enum (encoding the 30 COBOL FILE-STATUS codes) and the data.txt
+        classpath fixture consumed by the four entry classes.
     -->
     <build>
         <finalName>cobol-database-1.0.0</finalName>
@@ -112,8 +105,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <mainClass>com.projectcobol.database.OpenFileRecordKeyApplication</mainClass>
-                    <layout>ZIP</layout>
+                    <skip>true</skip>
                 </configuration>
             </plugin>
         </plugins>

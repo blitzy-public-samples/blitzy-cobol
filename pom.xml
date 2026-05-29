@@ -91,21 +91,22 @@
     <!--
         One Maven sub-module per OpenCobol/ topic folder. Each module is fully
         self-contained (no cross-submodule dependencies); there is deliberately no
-        cobol-common module. The original .cbl sources remain under OpenCobol/.
+        cobol-common module. The original .cbl sources remain under OpenCobol/ and
+        are never modified.
 
-        The reactor lists ONLY the sub-modules that physically exist on the branch
-        so that `mvn validate`, `mvn clean package` and `mvn test` always succeed
-        from the repository root, and so that root-scoped builds such as
-        `mvn -pl cobol-sqlite,cobol-random,cobol-memory,cobol-loops,cobol-date -am compile`
-        resolve every processed module in the reactor. The Java translation is
-        delivered incrementally, one topic at a time; each new sub-module is
-        appended here in the same change that adds its directory and POM. The full
-        target set of eleven topics is documented in the root README. Currently
-        translated topics (in this reactor): date, loops, memory, random, sqlite,
-        sort, string, struct. The remaining target topics (helloworld, conditions,
-        database) will be appended here as each is translated.
+        All eleven topic sub-modules are listed below so that `mvn validate`,
+        `mvn clean package` and `mvn test` build the full project from the
+        repository root, and so that root-scoped builds such as
+        `mvn -pl cobol-database,cobol-conditions,cobol-helloworld -am compile`
+        resolve every selected module in the reactor. The module order matches the
+        canonical topic order documented in the root README and in
+        OpenCobol/Games/README.md: helloworld, conditions, database, date, loops,
+        memory, random, sqlite, sort, string, struct.
     -->
     <modules>
+        <module>cobol-helloworld</module>
+        <module>cobol-conditions</module>
+        <module>cobol-database</module>
         <module>cobol-date</module>
         <module>cobol-loops</module>
         <module>cobol-memory</module>
