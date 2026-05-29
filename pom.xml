@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (C) 2017-present Maxfx and Project COBOL contributors.
+
+    This file is part of Project COBOL.
+
+    Project COBOL is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Project COBOL is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Inherit from spring-boot-starter-parent so the Spring Boot 3.5 BOM manages
+        every Spring Boot starter, JUnit Jupiter, AssertJ, Mockito and the core
+        build plugins. An empty <relativePath/> forces Maven to resolve the parent
+        from the local repository / Maven Central rather than the filesystem.
+    -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.5.9</version>
+        <relativePath/> <!-- lookup parent from Maven Central -->
+    </parent>
+
+    <groupId>com.projectcobol</groupId>
+    <artifactId>cobol-parent</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+
+    <name>Project COBOL - Parent</name>
+    <description>
+        Parent POM for the Java 21 / Spring Boot 3.x translations of the OpenCobol/
+        educational sample programs. The original .cbl sources under OpenCobol/ are
+        preserved verbatim; each topic folder is mirrored by a per-topic Maven sub-module.
+    </description>
+    <url>https://github.com/Martinfx/Cobol</url>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License, Version 3</name>
+            <url>https://www.gnu.org/licenses/gpl-3.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <inceptionYear>2017</inceptionYear>
+
+    <developers>
+        <developer>
+            <name>Maxfx</name>
+            <url>https://github.com/Martinfx</url>
+        </developer>
+    </developers>
+
+    <scm>
+        <url>https://github.com/Martinfx/Cobol</url>
+        <connection>scm:git:https://github.com/Martinfx/Cobol.git</connection>
+    </scm>
+
+    <!--
+        Centralized build properties inherited by every child module.
+        java.version drives the Spring Boot parent's compiler configuration; the
+        explicit maven.compiler.* properties guarantee Java 21 source/target/release
+        regardless of which property a given plugin reads. UTF-8 encoding eliminates
+        platform-specific character-encoding warnings (critical for -Werror builds).
+    -->
+    <properties>
+        <java.version>21</java.version>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <maven.compiler.release>21</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <sqlite-jdbc.version>3.53.1.0</sqlite-jdbc.version>
+    </properties>
+
+    <!--
+        One Maven sub-module per OpenCobol/ topic folder. Each module is fully
+        self-contained (no cross-submodule dependencies); there is deliberately no
+        cobol-common module. The original .cbl sources remain under OpenCobol/.
+    -->
+    <modules>
+        <module>cobol-helloworld</module>
+        <module>cobol-conditions</module>
+        <module>cobol-database</module>
+        <module>cobol-date</module>
+        <module>cobol-loops</module>
+        <module>cobol-memory</module>
+        <module>cobol-random</module>
+        <module>cobol-sqlite</module>
+        <module>cobol-sort</module>
+        <module>cobol-string</module>
+        <module>cobol-struct</module>
+    </modules>
+
+    <!--
+        Only the SQLite JDBC driver needs a managed version here; every other
+        dependency (Spring Boot starters, JUnit Jupiter, AssertJ, Mockito) is
+        already governed by the spring-boot-dependencies BOM inherited via the
+        parent. Child modules that require SQLite (only cobol-sqlite) declare the
+        dependency without a <version> element so this managed version applies.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.xerial</groupId>
+                <artifactId>sqlite-jdbc</artifactId>
+                <version>${sqlite-jdbc.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <!--
+            pluginManagement centralizes plugin configuration for every child
+            module. The maven-compiler-plugin enforces the project's mandatory
+            zero-warning policy: -Xlint:all surfaces all lint warnings and -Werror
+            escalates any warning to a build-breaking error. -parameters preserves
+            method parameter names for Spring Boot binding. The surefire argLine
+            pins UTF-8 so golden-output assertions on captured System.out are
+            locale-independent. The spring-boot-maven-plugin's repackage goal is
+            pre-bound so each executable sub-module only needs a bare <plugin> ref.
+        -->
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <source>${maven.compiler.source}</source>
+                        <target>${maven.compiler.target}</target>
+                        <release>${maven.compiler.release}</release>
+                        <compilerArgs>
+                            <arg>-Xlint:all</arg>
+                            <arg>-Werror</arg>
+                            <arg>-parameters</arg>
+                        </compilerArgs>
+                        <showWarnings>true</showWarnings>
+                        <showDeprecation>true</showDeprecation>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <argLine>-Dfile.encoding=UTF-8</argLine>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>repackage</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+
+        <!--
+            Activate the managed compiler and surefire configuration for this
+            parent build. This is a no-op for pom packaging (no sources/tests) but
+            is declared explicitly so the enforced configuration is unambiguous.
+        -->
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
