@@ -25,7 +25,7 @@
 
     <!--
         Inherit from the cobol-parent aggregator POM. The parent supplies the
-        Spring Boot 3.5.9 BOM (via its own spring-boot-starter-parent), Java 21
+        Spring Boot 3.5.x BOM (via its own spring-boot-starter-parent), Java 21
         source/target/release, the zero-warning compiler policy (-Xlint:all
         -Werror -parameters), the UTF-8 surefire encoding and the pre-bound
         spring-boot-maven-plugin repackage goal. groupId and version are inherited
@@ -79,8 +79,10 @@
         (java -jar cobol-string/target/cobol-string-1.0.0.jar) works. The
         spring-boot-maven-plugin is referenced without a version (managed by the
         parent) and without an executions block (the repackage goal is already
-        bound in the parent's pluginManagement). mainClass is pinned to the single
-        @SpringBootApplication entry class so the fat-jar's Start-Class is explicit.
+        bound in the parent's pluginManagement). No mainClass is pinned: this
+        module contains exactly one @SpringBootApplication entry class
+        (StringApplication), which the spring-boot-maven-plugin repackage goal
+        auto-detects as the fat-jar's Start-Class.
     -->
     <build>
         <finalName>cobol-string-1.0.0</finalName>
@@ -89,9 +91,6 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <configuration>
-                    <mainClass>com.projectcobol.string.StringApplication</mainClass>
-                </configuration>
             </plugin>
         </plugins>
     </build>

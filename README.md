@@ -57,14 +57,26 @@ This project is licensed under the terms of the **GNU General Public License v3.
 Java 21 / Spring Boot Build
 ===========================
 
-This repository now provides Java 21 / Spring Boot 3.x translations of every translatable OpenCobol sample under `OpenCobol/`. The original `.cbl` files remain in place as authoritative references. The Java translations live in eleven per-topic Maven sub-modules at the repository root.
+This repository is being extended with Java 21 / Spring Boot 3.x translations of the OpenCobol sample programs. The original `.cbl` files under `OpenCobol/` remain in place as the authoritative references; the Java translations live in per-topic Maven sub-modules at the repository root and are added incrementally, one topic at a time.
 
 ### Prerequisites
 
  * Java 21 JDK (for example, Eclipse Temurin 21 — https://adoptium.net/)
  * Apache Maven 3.9 or newer (https://maven.apache.org/download.cgi)
 
-### Build all sub-modules
+### Currently available sub-modules
+
+The Maven reactor currently builds the following sub-modules:
+
+| Sub-module | Source COBOL | Notes |
+|---|---|---|
+| `cobol-sort` | `OpenCobol/Sort/*.cbl` (3 files) | Bubble, insertion, and selection sort over `int[]`; three entry classes share one JAR |
+| `cobol-string` | `OpenCobol/String/String.cbl` | `String.substring` translation of COBOL reference modification |
+| `cobol-struct` | `OpenCobol/Struct/Struct.cbl` | Grouped `OCCURS` arrays via Java arrays / records |
+
+The remaining topics (`cobol-helloworld`, `cobol-conditions`, `cobol-database`, `cobol-date`, `cobol-loops`, `cobol-memory`, `cobol-random`, `cobol-sqlite`) are translated and added in subsequent stages; each is appended to the root `pom.xml` `<modules>` list in the same change that introduces it. The full target catalog is listed at the end of this section.
+
+### Build all available sub-modules
 
 ```sh
 git clone https://github.com/Martinfx/Cobol.git
@@ -77,20 +89,37 @@ This produces an executable Spring Boot JAR per sub-module under `cobol-<topic>/
 ### Run a sample
 
 ```sh
-java -jar cobol-helloworld/target/cobol-helloworld-1.0.0.jar
+java -jar cobol-string/target/cobol-string-1.0.0.jar
 ```
 
-Some sub-modules (for example `cobol-conditions`, `cobol-database`, `cobol-sort`) contain multiple Spring Boot entry classes that share a single JAR. To run a non-default entry class, pass `-Dloader.main=<fully.qualified.ClassName>` or rebuild that sub-module with `-Dstart-class=<FQCN>`.
+### Running a multi-entry sub-module (`cobol-sort`)
 
-### Run the JUnit 5 test suite
+`cobol-sort` contains three Spring Boot entry classes that share a single JAR. Running the JAR with no extra options runs the default entry class (`BubbleSortApplication`):
+
+```sh
+java -jar cobol-sort/target/cobol-sort-1.0.0.jar
+```
+
+The JAR is packaged with Spring Boot's `PropertiesLauncher`, so a non-default entry class can be selected at run time with `-Dloader.main=<fully.qualified.ClassName>`:
+
+```sh
+java -Dloader.main=com.projectcobol.sort.InsertSortApplication -jar cobol-sort/target/cobol-sort-1.0.0.jar
+java -Dloader.main=com.projectcobol.sort.SelectSortApplication -jar cobol-sort/target/cobol-sort-1.0.0.jar
+```
+
+Each entry class disables sibling component scanning, so exactly one COBOL sort translation runs per invocation.
+
+### Run the test suite
 
 ```sh
 mvn test
 ```
 
-The test suite uses JUnit Jupiter 5 golden-output assertions: each entry class is invoked and its captured `System.out` is compared against `src/test/resources/expected/<ClassName>.txt`.
+Each sub-module ships golden-output fixtures under `src/test/resources/expected/<ClassName>.txt`. JUnit 5 golden-output test classes — which capture `System.out` and compare it against the matching fixture — are added alongside each module; `mvn test` runs whatever tests are present on the branch.
 
-### Sub-module catalog
+### Target sub-module catalog
+
+The complete set of planned Java sub-modules (delivered incrementally) is:
 
 | Sub-module | Source COBOL | Notes |
 |---|---|---|

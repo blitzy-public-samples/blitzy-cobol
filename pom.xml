@@ -32,7 +32,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.5.9</version>
+        <version>3.5.14</version>
         <relativePath/> <!-- lookup parent from Maven Central -->
     </parent>
 
@@ -92,16 +92,16 @@
         One Maven sub-module per OpenCobol/ topic folder. Each module is fully
         self-contained (no cross-submodule dependencies); there is deliberately no
         cobol-common module. The original .cbl sources remain under OpenCobol/.
+
+        The reactor lists ONLY the sub-modules that physically exist on the branch
+        so that `mvn validate`, `mvn clean package` and `mvn test` always succeed
+        from the repository root. The Java translation is delivered incrementally,
+        one topic at a time; each new sub-module is appended here in the same change
+        that adds its directory and POM. The full target set of eleven topics is
+        documented in the root README. Currently translated topics: sort, string,
+        struct.
     -->
     <modules>
-        <module>cobol-helloworld</module>
-        <module>cobol-conditions</module>
-        <module>cobol-database</module>
-        <module>cobol-date</module>
-        <module>cobol-loops</module>
-        <module>cobol-memory</module>
-        <module>cobol-random</module>
-        <module>cobol-sqlite</module>
         <module>cobol-sort</module>
         <module>cobol-string</module>
         <module>cobol-struct</module>
@@ -132,8 +132,12 @@
             escalates any warning to a build-breaking error. -parameters preserves
             method parameter names for Spring Boot binding. The surefire argLine
             pins UTF-8 so golden-output assertions on captured System.out are
-            locale-independent. The spring-boot-maven-plugin's repackage goal is
-            pre-bound so each executable sub-module only needs a bare <plugin> ref.
+            locale-independent. The spring-boot-maven-plugin inherits its single
+            managed repackage execution from spring-boot-starter-parent, so each
+            executable sub-module only needs a bare <plugin> ref. No explicit
+            <executions> block is declared here: adding one would register a
+            second, redundant repackage execution (the original "(default)" +
+            inherited "(repackage)" double-run).
         -->
         <pluginManagement>
             <plugins>
@@ -163,13 +167,6 @@
                 <plugin>
                     <groupId>org.springframework.boot</groupId>
                     <artifactId>spring-boot-maven-plugin</artifactId>
-                    <executions>
-                        <execution>
-                            <goals>
-                                <goal>repackage</goal>
-                            </goals>
-                        </execution>
-                    </executions>
                 </plugin>
             </plugins>
         </pluginManagement>

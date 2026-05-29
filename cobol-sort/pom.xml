@@ -25,7 +25,7 @@
 
     <!--
         Inherit from the cobol-parent aggregator POM. The parent supplies the
-        Spring Boot 3.5.9 BOM (via its own spring-boot-starter-parent), Java 21
+        Spring Boot 3.5.x BOM (via its own spring-boot-starter-parent), Java 21
         source/target/release, the zero-warning compiler policy (-Xlint:all
         -Werror -parameters), the UTF-8 surefire encoding and the pre-bound
         spring-boot-maven-plugin repackage goal. groupId and version are inherited
@@ -89,10 +89,20 @@
         bound in the parent's pluginManagement). This module has three
         @SpringBootApplication entry classes, so mainClass is pinned to the
         alphabetically-first one (BubbleSortApplication). This gives the fat-jar a
-        single, deterministic Start-Class and avoids the repackage failure that
-        occurs when multiple main classes are found. InsertSortApplication and
-        SelectSortApplication are documented in the root README as alternate
-        entry points.
+        single, deterministic default Start-Class and avoids the repackage failure
+        that occurs when multiple main classes are found.
+
+        layout=ZIP packages the jar with Spring Boot's PropertiesLauncher as the
+        Main-Class (instead of the default JarLauncher). PropertiesLauncher honours
+        the loader.main system property, so the two non-default entry classes can
+        be selected at run time from the shared cobol-sort-1.0.0.jar:
+            java -Dloader.main=com.projectcobol.sort.InsertSortApplication -jar ...
+            java -Dloader.main=com.projectcobol.sort.SelectSortApplication -jar ...
+        Without -Dloader.main, PropertiesLauncher falls back to the manifest
+        Start-Class (BubbleSortApplication). Each entry class additionally disables
+        sibling component scanning (@ComponentScan(useDefaultFilters = false)) so
+        that exactly one COBOL sort translation runs per invocation. These run
+        commands are documented in the root README.
     -->
     <build>
         <finalName>cobol-sort-1.0.0</finalName>
@@ -103,6 +113,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
                     <mainClass>com.projectcobol.sort.BubbleSortApplication</mainClass>
+                    <layout>ZIP</layout>
                 </configuration>
             </plugin>
         </plugins>

@@ -22,6 +22,7 @@ package com.projectcobol.sort;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.ComponentScan;
 
 import java.util.Random;
 
@@ -77,7 +78,18 @@ import java.util.Random;
  * {@code -Dloader.main=<fully.qualified.ClassName>} on the {@code java -jar}
  * command line.
  */
+// One-program-one-class fidelity: each {@code OpenCobol/Sort/*.cbl} program is
+// translated to its own @SpringBootApplication entry class, and all three sort
+// classes share the package com.projectcobol.sort (per the AAP package rule).
+// @SpringBootApplication's default @ComponentScan would otherwise discover the
+// sibling sort applications (each is a @Configuration + CommandLineRunner) and
+// run them together in a single JVM. Disabling the default component-scan filters
+// means this application registers ONLY itself (the primary source handed to
+// SpringApplication.run), so exactly one COBOL sort translation executes per
+// invocation — whether launched as the default Start-Class or selected via the
+// PropertiesLauncher -Dloader.main system property.
 @SpringBootApplication
+@ComponentScan(useDefaultFilters = false)
 public class BubbleSortApplication implements CommandLineRunner {
 
     // COBOL: 78 W-LEN-ARR VALUE 10.  (BubbleSort.cbl L16)
