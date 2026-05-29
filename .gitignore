@@ -6,3 +6,11 @@
 *.c.l.h
 *.~lock*
 *.swp
+
+# --- Java / Maven build artifacts (added during environment setup) ---
+target/
+*.class
+*.jar
+.idea/
+.vscode/
+*.iml
