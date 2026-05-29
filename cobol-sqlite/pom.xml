@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (C) 2017-present Maxfx and Project COBOL contributors.
+
+    This file is part of Project COBOL.
+
+    Project COBOL is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Project COBOL is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Inherit from the cobol-parent aggregator POM. The parent supplies the
+        Spring Boot 3.5.x BOM (via its own spring-boot-starter-parent), Java 21
+        source/target/release, the zero-warning compiler policy (-Xlint:all
+        -Werror -parameters), the UTF-8 surefire encoding and the pre-bound
+        spring-boot-maven-plugin repackage goal. groupId and version are inherited
+        from this parent and are therefore intentionally omitted below.
+        relativePath resolves the parent from the repository root on the local
+        filesystem rather than from a remote repository.
+    -->
+    <parent>
+        <groupId>com.projectcobol</groupId>
+        <artifactId>cobol-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>cobol-sqlite</artifactId>
+
+    <name>Project COBOL - SQLite</name>
+    <description>
+        Java 21 / Spring Boot 3.x translation of OpenCobol/SQLite/Hello_SQLITE.cbl.
+        This sub-module is the SECURITY-FIX target of the COBOL to Java refactor:
+        the only sub-module that contains an intentional behavioral change relative
+        to the COBOL original. The change replaces the ocsqlite C-binding text
+        substitution SQL execution (which is vulnerable to SQL injection via the
+        SCREEN SECTION key-field input) with java.sql.PreparedStatement parameter
+        binding, structurally neutralizing the SQL injection vector. The 20-row
+        external sql-table ring buffer and the callback sub-program from the COBOL
+        original are eliminated; result rows are iterated inline via
+        java.sql.ResultSet.next(). SQLite access is provided by org.xerial:sqlite-jdbc
+        (Apache 2.0 licensed, GPLv3 compatible) which bundles native libraries for
+        Windows, macOS, Linux, and FreeBSD. SQL DDL/DML strings (CREATE TABLE trial,
+        INSERT with randomblob/hex/lower/datetime/julianday SQLite functions) are
+        preserved character-for-character from the COBOL source; only the execution
+        mechanism changes.
+    </description>
+
+    <!--
+        Three dependencies. Two are BOM-managed by the inherited
+        spring-boot-starter-parent (no explicit version): the core Spring Boot
+        starter that provides SpringApplication, CommandLineRunner and the
+        @SpringBootApplication auto-configuration used by SqliteApplication, and
+        the test starter (JUnit Jupiter 5.12.x, AssertJ, Mockito, spring-boot-test)
+        that backs the JUnit 5 golden-output test and the SQL-injection regression
+        test (run against an in-memory jdbc:sqlite::memory: database). The third,
+        org.xerial:sqlite-jdbc, is the JDBC driver that replaces the COBOL ocsqlite
+        C binding; its version (3.53.1.0) is supplied by the parent POM's
+        dependencyManagement, so it is declared here without a version element.
+        sqlite-jdbc is Apache 2.0 licensed (GPLv3 compatible) and bundles the
+        native SQLite libraries for Windows, macOS, Linux and FreeBSD. This is the
+        only cobol-* sub-module that depends on sqlite-jdbc, and it depends on no
+        other cobol-* sub-module.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!--
+        finalName fixes the executable artifact path to
+        target/cobol-sqlite-1.0.0.jar so the documented run command
+        (java -jar cobol-sqlite/target/cobol-sqlite-1.0.0.jar) works. The
+        spring-boot-maven-plugin is referenced without a version (managed by the
+        parent) and without an executions block (the repackage goal is already
+        bound in the parent's pluginManagement). This module contains exactly one
+        @SpringBootApplication entry class; mainClass is pinned explicitly to
+        com.projectcobol.sqlite.SqliteApplication to give the fat-jar a single,
+        deterministic Start-Class (matching this module's published build
+        contract). No layout override is needed because there is only one entry
+        class to launch.
+    -->
+    <build>
+        <finalName>cobol-sqlite-1.0.0</finalName>
+
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.projectcobol.sqlite.SqliteApplication</mainClass>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
