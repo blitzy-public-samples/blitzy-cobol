@@ -7,10 +7,24 @@
 *.~lock*
 *.swp
 
-# --- Java / Maven build artifacts (added during environment setup) ---
+# Java / Maven build artifacts (added during the COBOL → Java refactor)
 target/
 *.class
 *.jar
+*.war
+
+# IDE metadata
 .idea/
 .vscode/
 *.iml
+
+# Maven wrapper extras (if added later by future tooling)
+.mvn/wrapper/maven-wrapper.jar
+
+# Spring Boot / JVM build outputs
+*.original
+hs_err_pid*.log
+
+# OS-generated metadata commonly created during IDE-driven builds
+.DS_Store
+Thumbs.db
