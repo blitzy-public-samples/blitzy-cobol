@@ -19,11 +19,12 @@
 
 package com.projectcobol.sqlite;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -36,6 +37,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.regex.Pattern;
 
@@ -43,22 +45,34 @@ import java.util.regex.Pattern;
  * JUnit 5 test suite for {@link SqliteApplication}. Validates the Java translation
  * of {@code OpenCobol/SQLite/Hello_SQLITE.cbl} per AAP &sect;0.2.1 and &sect;0.6.2.
  *
- * <p>Contains two MANDATORY test methods plus one optional regression test:
+ * <p>Contains two MANDATORY test methods:
  * <ol>
  *   <li>{@link #producesGoldenOutputMatchingFixture()} &mdash; golden-output regex
  *       match against {@code expected/SqliteApplication.txt} (which uses
  *       {@code <RANDOMBLOB>}, {@code <DATETIME>}, and {@code <JULIANDAY>}
  *       placeholders to handle non-deterministic SQLite function output).</li>
  *   <li>{@link #injectionAttemptIsNeutralized()} &mdash; SQL injection regression test
- *       (THE MANDATORY security-fix validation per AAP &sect;0.6.2). Passes the
- *       literal payload {@code '; DROP TABLE trial; --} as a parameter-bound
- *       value and asserts (a) no {@code SQLException}, (b) {@code trial} table
- *       still exists, (c) {@code ResultSet} is empty.</li>
- *   <li>{@link #queryByKeyWithInjectionPayloadIsNeutralized()} &mdash; additional
- *       regression test invoking the PRODUCTION {@link SqliteApplication#queryByKey}
- *       method directly with the malicious payload (exercises the actual
- *       security-fix code path, not just an isolated JDBC test).</li>
+ *       (THE MANDATORY security-fix validation per AAP &sect;0.6.2). This is the
+ *       designated security gate: it drives the malicious payload
+ *       {@code '; DROP TABLE trial; --} through the PRODUCTION
+ *       {@link SqliteApplication#queryByKey(Connection, String)} method &mdash; the
+ *       {@code keyField} / {@code first = ?} code path that the COBOL
+ *       {@code key-field} input feeds (AAP &sect;0.4.1) &mdash; and asserts
+ *       (a) no {@code SQLException}, (b) the {@code trial} table still exists,
+ *       (c) no result/output is produced for the malicious key, and
+ *       (d) the seeded row count is unchanged. Because it exercises production
+ *       logic, this gate fails if {@code queryByKey} were ever regressed back to
+ *       {@link Statement}-plus-string-concatenation SQL.</li>
  * </ol>
+ *
+ * <p>A shared in-memory database is provisioned by {@link #setUp()} (annotated
+ * {@code @BeforeEach}) and released by {@link #tearDown()} (annotated
+ * {@code @AfterEach}). {@code setUp()} opens a single {@code jdbc:sqlite::memory:}
+ * {@link Connection}, creates the {@code trial} table with the verbatim COBOL
+ * schema, and seeds one deterministic row so the injection gate can assert the
+ * row count is unchanged after the attack. Because each {@code jdbc:sqlite::memory:}
+ * connection is an isolated database, the security gate operates on this same
+ * shared connection.
  *
  * <p>All tests use {@code jdbc:sqlite::memory:} (MANDATORY per AAP &sect;0.2.1) for
  * in-memory, deterministic, parallel-safe execution with no filesystem footprint.
@@ -85,6 +99,64 @@ class SqliteApplicationTest {
      * this string is bound as a VALUE and never executed as SQL syntax.
      */
     private static final String MALICIOUS_PAYLOAD = "'; DROP TABLE trial; --";
+
+    /**
+     * Shared in-memory SQLite connection used by the SQL-injection security gate.
+     *
+     * <p>Provisioned by {@link #setUp()} ({@code @BeforeEach}) and released by
+     * {@link #tearDown()} ({@code @AfterEach}). Because every
+     * {@code jdbc:sqlite::memory:} connection is an isolated database, the
+     * {@code trial} table seeded in {@link #setUp()} is only visible through THIS
+     * connection &mdash; so {@link #injectionAttemptIsNeutralized()} must drive the
+     * production {@link SqliteApplication#queryByKey(Connection, String)} call
+     * against this same shared connection.
+     */
+    private Connection connection;
+
+    /**
+     * Lifecycle setup ({@code @BeforeEach}). Opens the shared in-memory SQLite
+     * connection, creates the {@code trial} table using the schema preserved
+     * character-for-character from {@code OpenCobol/SQLite/Hello_SQLITE.cbl:L191-193}
+     * (AAP &sect;0.6.2 verbatim SQL-preservation rule), and seeds one deterministic
+     * row.
+     *
+     * <p>The single seeded row {@code (1, 'safe', '2024-01-01')} gives the
+     * injection gate a known baseline: a legitimate integer key (1) that the
+     * production {@code first = ?} query can match, and a fixed row count (1) that
+     * must remain unchanged after the malicious payload is bound as a parameter.
+     *
+     * @throws SQLException if opening the connection or running the DDL/seed fails
+     */
+    @BeforeEach
+    void setUp() throws SQLException {
+        // AAP §0.2.1: tests MUST use in-memory SQLite. A fresh database is created
+        // for this connection; it is the same connection the security gate queries.
+        connection = DriverManager.getConnection(TEST_JDBC_URL);
+        try (Statement stmt = connection.createStatement()) {
+            // Schema matches Hello_SQLITE.cbl:L191-193 character-for-character
+            // (AAP §0.6.2 verbatim preservation rule).
+            stmt.execute("create table trial (first integer primary key, "
+                    + "second char(20), third date)");
+            // Deterministic seed row: known integer key (1) and known row count (1)
+            // so the injection gate can assert the row count is unchanged.
+            stmt.execute("insert into trial values (1, 'safe', '2024-01-01')");
+        }
+    }
+
+    /**
+     * Lifecycle teardown ({@code @AfterEach}). Closes the shared in-memory SQLite
+     * connection opened in {@link #setUp()}, releasing the in-memory database so
+     * each test runs against a fresh, isolated {@code trial} table with no
+     * cross-test contamination.
+     *
+     * @throws SQLException if closing the connection fails
+     */
+    @AfterEach
+    void tearDown() throws SQLException {
+        if (connection != null && !connection.isClosed()) {
+            connection.close();
+        }
+    }
 
     /**
      * Golden-output assertion: runs {@link SqliteApplication#run(String...)}
@@ -151,149 +223,116 @@ class SqliteApplicationTest {
     }
 
     /**
-     * MANDATORY SQL injection regression test per AAP &sect;0.2.1 and &sect;0.6.2.
+     * MANDATORY SQL injection regression test per AAP &sect;0.2.1 and &sect;0.6.2 &mdash;
+     * THE designated security gate.
      *
-     * <p>Confirms that {@link PreparedStatement} parameter binding structurally
-     * prevents SQL injection. Passes the literal string {@link #MALICIOUS_PAYLOAD}
-     * as a parameter-bound value to a SELECT query and asserts:
+     * <p>Drives the literal payload {@link #MALICIOUS_PAYLOAD} through the
+     * PRODUCTION {@link SqliteApplication#queryByKey(Connection, String)} method,
+     * i.e. the {@code keyField} / {@code first = ?} code path that the COBOL
+     * SCREEN SECTION {@code key-field} input feeds (AAP &sect;0.4.1). Exercising the
+     * real production query &mdash; rather than an isolated, test-local
+     * {@link PreparedStatement} &mdash; is what makes this gate meaningful: it would
+     * FAIL if {@code queryByKey} were ever regressed back to {@link Statement}
+     * plus string concatenation, because the payload would then either throw a
+     * {@link SQLException} or drop the {@code trial} table.
+     *
+     * <p>The shared {@code trial} table (created and seeded with one row in
+     * {@link #setUp()}) is queried through the same shared {@link #connection}
+     * &mdash; mandatory because each {@code jdbc:sqlite::memory:} connection is an
+     * isolated database. The production method's output is captured via an
+     * injected {@link PrintStream} so the "no result" condition can be asserted.
+     *
+     * <p>Assertions:
      * <ol type="a">
-     *   <li>No {@link java.sql.SQLException} is thrown (covered by
+     *   <li>No {@link SQLException} is thrown by the production {@code queryByKey}
+     *       call (wrapped in
      *       {@link org.junit.jupiter.api.Assertions#assertDoesNotThrow}).</li>
-     *   <li>The {@code trial} table still exists in the in-memory database
-     *       after the query runs (verified via {@code SELECT name FROM
-     *       sqlite_master WHERE type='table' AND name='trial'}).</li>
-     *   <li>The returned {@link ResultSet} is empty &mdash; the literal is bound as
-     *       a value, never executed as SQL syntax (verified via
-     *       {@code assertFalse(rs.next(), ...)}).</li>
+     *   <li>The {@code trial} table still exists after the query (verified via
+     *       {@code SELECT name FROM sqlite_master WHERE type='table' AND name='trial'})
+     *       &mdash; the {@code DROP TABLE} embedded in the payload never executed.</li>
+     *   <li>No result/output is produced for the malicious key: the captured
+     *       output is empty because {@code first = '<payload>'} matches no row
+     *       (the literal is bound as a value, never executed as SQL).</li>
+     *   <li>The seeded row count is unchanged &mdash; the attack neither inserted
+     *       nor deleted any row.</li>
      * </ol>
-     *
-     * <p>This test exercises the SECURITY MECHANISM directly via a clean JDBC
-     * connection, isolating the validation from the broader SqliteApplication
-     * flow. The companion test
-     * {@link #queryByKeyWithInjectionPayloadIsNeutralized()} validates the
-     * actual production code path through {@link SqliteApplication#queryByKey}.
      *
      * <p>Under COBOL's text-substitution {@code ocsql-exec} paragraph
      * (Hello_SQLITE.cbl lines 288-307), the payload would close the string
      * literal with a single quote, append a {@code DROP TABLE trial} statement,
      * and comment out the remainder &mdash; destroying the table. Under JDBC
-     * {@link PreparedStatement}, the payload is bound as an inert value.
+     * {@link PreparedStatement} parameter binding, the payload is bound as an
+     * inert value.
+     *
+     * @throws SQLException if a verification query (row count / table existence)
+     *                      fails; the production {@code queryByKey} call itself is
+     *                      asserted not to throw via {@code assertDoesNotThrow}
      */
     @Test
-    void injectionAttemptIsNeutralized() {
-        assertDoesNotThrow(() -> {
-            try (Connection conn = DriverManager.getConnection(TEST_JDBC_URL)) {
-                // Setup: create trial table mirroring production schema
-                // (AAP §0.6.2 verbatim preservation rule: CREATE TABLE schema
-                // matches Hello_SQLITE.cbl:L191-193 character-for-character).
-                try (Statement stmt = conn.createStatement()) {
-                    stmt.execute("create table trial (first integer primary key, "
-                            + "second char(20), third date)");
-                    stmt.execute("insert into trial values (1, 'safe', '2024-01-01')");
-                }
+    void injectionAttemptIsNeutralized() throws SQLException {
+        // Capture the production output sink so assertion (c) can verify that the
+        // malicious key produces NO result rows. queryByKey writes matched rows to
+        // the injected PrintStream; an empty capture proves nothing matched.
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        PrintStream capturedOut = new PrintStream(captured, true, StandardCharsets.UTF_8);
+        InputStream emptyInput = new ByteArrayInputStream(new byte[0]);
+        SqliteApplication app = new SqliteApplication(TEST_JDBC_URL, emptyInput, capturedOut);
 
-                // Attack: bind MALICIOUS_PAYLOAD via PreparedStatement parameter
-                // binding. Under COBOL text-substitution this payload would
-                // execute DROP TABLE; under JDBC PreparedStatement it is bound
-                // as a VALUE and never parsed as SQL syntax.
-                //
-                // The query targets the 'second' column (a CHAR column) so the
-                // payload (a String) can be bound via setString without type
-                // coercion concerns.
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT * FROM trial WHERE second = ?")) {
-                    ps.setString(1, MALICIOUS_PAYLOAD);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        // ASSERTION (c): ResultSet is empty -- the literal is
-                        // bound as a value, never executed as SQL. No row in
-                        // trial has 'second' equal to the malicious payload
-                        // string, so the result set must be empty.
-                        assertFalse(rs.next(),
-                                "Malicious payload bound as parameter must not "
-                                        + "match any row (proves the literal is "
-                                        + "a value, not executed SQL)");
-                    }
-                }
+        // Baseline row count from the row seeded in setUp() (assertion (d) compares
+        // against this after the attack).
+        int rowsBefore = countTrialRows();
 
-                // ASSERTION (b): trial table still exists -- DROP TABLE was
-                // structurally prevented by PreparedStatement parameter binding.
-                try (PreparedStatement check = conn.prepareStatement(
-                        "SELECT name FROM sqlite_master "
-                                + "WHERE type='table' AND name='trial'");
-                     ResultSet rs = check.executeQuery()) {
-                    assertTrue(rs.next(),
-                            "trial table must still exist -- DROP TABLE was "
-                                    + "structurally prevented by "
-                                    + "PreparedStatement parameter binding");
-                    assertEquals("trial", rs.getString("name"));
-                }
+        // ASSERTION (a): the PRODUCTION security-fix path must not throw. This is
+        // the heart of the gate -- it runs queryByKey ("select * from trial where
+        // first = ?") against the shared connection, binding MALICIOUS_PAYLOAD as a
+        // parameter. If queryByKey were regressed to Statement+concatenation, the
+        // payload would throw here (or drop the table, caught by assertion (b)).
+        assertDoesNotThrow(() -> app.queryByKey(connection, MALICIOUS_PAYLOAD),
+                "Production queryByKey must bind the payload as a parameter and "
+                        + "must NOT throw -- a throw would indicate unsafe "
+                        + "Statement/string-concatenation SQL");
 
-                // ASSERTION (a): no SQLException thrown -- covered by the
-                // surrounding assertDoesNotThrow lambda. If any of the JDBC
-                // operations above had thrown SQLException, the assertion
-                // would fail before reaching this point.
-            }
-        });
+        // ASSERTION (c): no result/output for the malicious key. "first = '<payload>'"
+        // matches no row because the payload is bound as a value (never executed),
+        // so queryByKey prints nothing.
+        String producedOutput = captured.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
+        assertEquals("", producedOutput,
+                "Malicious key must yield NO result rows / NO output (payload bound "
+                        + "as a value, never executed as SQL). Actual output was:\n"
+                        + producedOutput);
+
+        // ASSERTION (b): trial table still exists -- the DROP TABLE embedded in the
+        // payload was structurally prevented by PreparedStatement parameter binding.
+        try (PreparedStatement check = connection.prepareStatement(
+                "SELECT name FROM sqlite_master "
+                        + "WHERE type='table' AND name='trial'");
+             ResultSet rs = check.executeQuery()) {
+            assertTrue(rs.next(),
+                    "trial table must still exist -- the DROP TABLE in the payload "
+                            + "was structurally prevented by PreparedStatement "
+                            + "parameter binding in production queryByKey");
+            assertEquals("trial", rs.getString("name"));
+        }
+
+        // ASSERTION (d): seeded row count unchanged -- the attack neither inserted
+        // nor deleted any row.
+        assertEquals(rowsBefore, countTrialRows(),
+                "Seeded row count must be unchanged after the injection attempt "
+                        + "(the payload executed no INSERT/DROP)");
     }
 
     /**
-     * Additional regression test invoking the PRODUCTION
-     * {@link SqliteApplication#queryByKey(Connection, String)} method directly
-     * with the malicious payload. This complements
-     * {@link #injectionAttemptIsNeutralized()} (which is an isolated JDBC test)
-     * by exercising the EXACT security-fix code path in the production class.
+     * Counts the rows currently in the shared {@code trial} table. Used by
+     * {@link #injectionAttemptIsNeutralized()} to capture the seeded baseline
+     * before the attack and to confirm the count is unchanged afterwards.
      *
-     * <p>If a future regression accidentally introduces string concatenation
-     * into {@code queryByKey}, this test will fail because the malicious payload
-     * would trigger a SQLException (closing the prepared statement's quoted
-     * string improperly) or destroy the trial table.
-     *
-     * <p>The method is invoked with the malicious payload as the
-     * {@code keyFieldInput} parameter; production code attempts to parse it as
-     * an integer first (which fails because of the embedded apostrophes and
-     * semicolons), then falls back to {@code setString(1, payload)} &mdash; which
-     * neutralizes the injection regardless of binding type.
+     * @return the number of rows in {@code trial} on the shared {@link #connection}
+     * @throws SQLException if the {@code COUNT(*)} query fails
      */
-    @Test
-    void queryByKeyWithInjectionPayloadIsNeutralized() {
-        assertDoesNotThrow(() -> {
-            try (Connection conn = DriverManager.getConnection(TEST_JDBC_URL)) {
-                // Initialize the schema and populate data using the production
-                // helper methods (package-private -- directly invokable from this
-                // same-package test class). This mirrors what run() does, but
-                // gives us explicit control over the connection lifecycle.
-                ByteArrayOutputStream captured = new ByteArrayOutputStream();
-                PrintStream capturedOut = new PrintStream(
-                        captured, true, StandardCharsets.UTF_8);
-                InputStream emptyInput = new ByteArrayInputStream(new byte[0]);
-
-                SqliteApplication app = new SqliteApplication(
-                        TEST_JDBC_URL, emptyInput, capturedOut);
-                app.initializeSchema(conn);
-                app.populateData(conn);
-
-                // Invoke queryByKey with the malicious payload directly.
-                // This exercises the EXACT security-fix code path in
-                // production. If queryByKey were to use string concatenation
-                // instead of PreparedStatement, this call would either:
-                //   - throw SQLException (failing assertDoesNotThrow), OR
-                //   - drop the trial table (failing the next assertion).
-                app.queryByKey(conn, MALICIOUS_PAYLOAD);
-
-                // Verify trial table still exists after the malicious query.
-                // This is the structural proof that PreparedStatement.setString
-                // neutralized the injection attempt.
-                try (PreparedStatement check = conn.prepareStatement(
-                        "SELECT name FROM sqlite_master "
-                                + "WHERE type='table' AND name='trial'");
-                     ResultSet rs = check.executeQuery()) {
-                    assertTrue(rs.next(),
-                            "trial table must still exist after queryByKey "
-                                    + "invocation with injection payload -- "
-                                    + "PreparedStatement.setString neutralized "
-                                    + "the attack");
-                }
-            }
-        });
+    private int countTrialRows() throws SQLException {
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery("select count(*) from trial")) {
+            return rs.next() ? rs.getInt(1) : -1;
+        }
     }
 }
