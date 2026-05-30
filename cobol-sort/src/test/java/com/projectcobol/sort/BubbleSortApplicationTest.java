@@ -43,12 +43,12 @@ class BubbleSortApplicationTest {
         } finally {
             System.setOut(originalOut);
         }
-        String actual = buf.toString(StandardCharsets.UTF_8);
+        String actual = buf.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
         String expected;
         try (InputStream in = getClass().getClassLoader()
                 .getResourceAsStream("expected/BubbleSortApplication.txt")) {
             assertNotNull(in, "Missing fixture expected/BubbleSortApplication.txt");
-            expected = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            expected = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
         assertEquals(expected, actual);
     }

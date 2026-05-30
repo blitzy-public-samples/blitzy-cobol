@@ -43,12 +43,12 @@ class InsertSortApplicationTest {
         } finally {
             System.setOut(originalOut);
         }
-        String actual = buf.toString(StandardCharsets.UTF_8);
+        String actual = buf.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
         String expected;
         try (InputStream in = getClass().getClassLoader()
                 .getResourceAsStream("expected/InsertSortApplication.txt")) {
             assertNotNull(in, "Missing fixture expected/InsertSortApplication.txt");
-            expected = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+            expected = new String(in.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
         assertEquals(expected, actual);
     }

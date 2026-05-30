@@ -32,8 +32,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Golden-output test for {@link RandomBingoApplication}. Runs the application
  * with the deterministic seed {@link #FIXED_SEED} and asserts that the captured
- * standard output matches the byte-for-byte fixture
- * {@code expected/RandomBingoApplication.txt}.
+ * standard output matches the fixture
+ * {@code expected/RandomBingoApplication.txt}. Line endings are normalized
+ * (CRLF&#x2192;LF) on both the captured output and the fixture so the assertion
+ * remains stable regardless of the fixture's checked-out line-ending style.
  */
 class RandomBingoApplicationTest {
 
@@ -58,7 +60,7 @@ class RandomBingoApplicationTest {
         RandomBingoApplication app = new RandomBingoApplication(FIXED_SEED);
         app.run();
 
-        String actual = captured.toString(StandardCharsets.UTF_8);
+        String actual = captured.toString(StandardCharsets.UTF_8).replace("\r\n", "\n");
         String expected = readExpected("expected/RandomBingoApplication.txt");
 
         assertEquals(expected, actual);
@@ -69,7 +71,7 @@ class RandomBingoApplicationTest {
             if (is == null) {
                 throw new IllegalStateException("Missing test fixture: " + resourcePath);
             }
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8).replace("\r\n", "\n");
         }
     }
 }
