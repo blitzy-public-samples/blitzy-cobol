@@ -79,10 +79,12 @@
         (java -jar cobol-string/target/cobol-string-1.0.0.jar) works. The
         spring-boot-maven-plugin is referenced without a version (managed by the
         parent) and without an executions block (the repackage goal is already
-        bound in the parent's pluginManagement). No mainClass is pinned: this
-        module contains exactly one @SpringBootApplication entry class
-        (StringApplication), which the spring-boot-maven-plugin repackage goal
-        auto-detects as the fat-jar's Start-Class.
+        bound in the parent's pluginManagement). This module contains exactly one
+        @SpringBootApplication entry class; mainClass is pinned explicitly to
+        com.projectcobol.string.StringApplication to give the fat-jar a single,
+        deterministic Start-Class in its manifest (matching the explicit mainClass
+        configuration used across the other cobol-* sub-modules). No layout
+        override is needed because there is only one entry class to launch.
     -->
     <build>
         <finalName>cobol-string-1.0.0</finalName>
@@ -91,6 +93,9 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.projectcobol.string.StringApplication</mainClass>
+                </configuration>
             </plugin>
         </plugins>
     </build>

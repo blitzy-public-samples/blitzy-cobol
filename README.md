@@ -54,8 +54,7 @@ License
 
 This project is licensed under the terms of the **GNU General Public License v3.0** license.
 
-Java 21 / Spring Boot Build
-===========================
+## Java 21 / Spring Boot Build
 
 This repository has been extended with Java 21 / Spring Boot 3.x translations of the OpenCobol sample programs. The original `.cbl` files under `OpenCobol/` remain in place as the authoritative references; the Java translations live in per-topic Maven sub-modules at the repository root. All eleven sub-modules are present and built by the Maven reactor.
 
