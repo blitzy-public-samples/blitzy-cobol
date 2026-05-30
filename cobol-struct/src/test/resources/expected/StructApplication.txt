@@ -1,0 +1,16 @@
+Array1 contains number: 01
+Array1 contains number: 02
+Array1 contains number: 03
+Array1 contains number: 04
+Array1 contains number: 05
+-------------------------
+Array2 contains number: 01
+Array2 contains number: 02
+Array2 contains number: 03
+Array2 contains number: 04
+Array2 contains number: 05
+Array2 contains number: 06
+Array2 contains number: 07
+Array2 contains number: 08
+Array2 contains number: 09
+Array2 contains number: 10

@@ -1,0 +1,14 @@
+Err:    [SQLITE_ERROR] SQL error or missing database (no such table: trial)
+1 <RANDOMBLOB> <DATETIME> 2 something <JULIANDAY> 3 <RANDOMBLOB> <DATETIME> 4 something <JULIANDAY>
+|4|
+|something|
+|<JULIANDAY>|
+|3|
+|<RANDOMBLOB>|
+|<DATETIME>|
+|2|
+|something|
+|<JULIANDAY>|
+|1|
+|<RANDOMBLOB>|
+|<DATETIME>|

@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (C) 2017-present Maxfx and Project COBOL contributors.
+
+    This file is part of Project COBOL.
+
+    Project COBOL is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Project COBOL is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!--
+        Inherit from the cobol-parent aggregator POM. The parent supplies the
+        Spring Boot 3.5.x BOM (via its own spring-boot-starter-parent), Java 21
+        source/target/release, the zero-warning compiler policy (-Xlint:all
+        -Werror -parameters), the UTF-8 surefire encoding and the pre-bound
+        spring-boot-maven-plugin repackage goal. groupId and version are inherited
+        from this parent and are therefore intentionally omitted below.
+        relativePath resolves the parent from the repository root on the local
+        filesystem rather than from a remote repository.
+    -->
+    <parent>
+        <groupId>com.projectcobol</groupId>
+        <artifactId>cobol-parent</artifactId>
+        <version>1.0.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>cobol-random</artifactId>
+
+    <name>Project COBOL - Random</name>
+    <description>
+        Java 21 / Spring Boot 3.x translation of OpenCobol/Random/*.cbl. Provides two
+        random-number demonstrations: RandomBingoApplication (a tip-lottery game built
+        on a 100-element int[] array with a 200-iteration warm-up loop, banner output,
+        and a "Winning number is :" final display) and RandomNumbersApplication (a
+        minimal 10-line emission of pseudo-random integers in [1,100] prefixed by the
+        literal "Random number: "). Production code seeds java.util.Random with
+        System.currentTimeMillis() % 86400 to mirror the COBOL FUNCTION
+        SECONDS-PAST-MIDNIGHT seeding; tests inject a fixed long seed via a
+        package-private constructor for deterministic golden-output assertions. The
+        two entry classes share the single fat-jar cobol-random-1.0.0.jar; the default
+        mainClass is RandomBingoApplication. Use
+        -Dloader.main=com.projectcobol.random.RandomNumbersApplication to run the
+        other entry class.
+    </description>
+
+    <!--
+        Exactly two dependencies, both BOM-managed (no explicit version): the core
+        Spring Boot starter that provides SpringApplication, CommandLineRunner and
+        the @SpringBootApplication auto-configuration used by the two random entry
+        classes (RandomBingoApplication, RandomNumbersApplication), and the test
+        starter (JUnit Jupiter 5.12.x, AssertJ, Mockito, spring-boot-test) that backs
+        the seed-injected JUnit 5 golden-output tests for this module. This module is
+        self-contained: it adds no JDBC driver and depends on no other cobol-*
+        sub-module.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!--
+        finalName fixes the executable artifact path to
+        target/cobol-random-1.0.0.jar so the documented run command
+        (java -jar cobol-random/target/cobol-random-1.0.0.jar) works. The
+        spring-boot-maven-plugin is referenced without a version (managed by the
+        parent) and without an executions block (the repackage goal is already
+        bound in the parent's pluginManagement). This module has two
+        @SpringBootApplication entry classes, so mainClass is pinned to the
+        alphabetically-first one (RandomBingoApplication). This gives the fat-jar a
+        single, deterministic default Start-Class and avoids the repackage failure
+        that occurs when multiple main classes are found. Note that RandomBingo.cbl's
+        COBOL PROGRAM-ID is GAME-LOTTERY; per the project's filename-traceability
+        rule the Java class follows the source filename (RandomBingoApplication),
+        not the PROGRAM-ID.
+
+        layout=ZIP packages the jar with Spring Boot's PropertiesLauncher as the
+        Main-Class (instead of the default JarLauncher). PropertiesLauncher honours
+        the loader.main system property, so the non-default entry class can be
+        selected at run time from the shared cobol-random-1.0.0.jar:
+            java -Dloader.main=com.projectcobol.random.RandomNumbersApplication -jar ...
+        Without -Dloader.main, PropertiesLauncher falls back to the manifest
+        Start-Class (RandomBingoApplication). These run commands are documented in
+        the root README.
+    -->
+    <build>
+        <finalName>cobol-random-1.0.0</finalName>
+
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>com.projectcobol.random.RandomBingoApplication</mainClass>
+                    <layout>ZIP</layout>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
