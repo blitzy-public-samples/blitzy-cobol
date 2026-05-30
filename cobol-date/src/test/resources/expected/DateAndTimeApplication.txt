@@ -1,5 +1,5 @@
 W-TIME: \d{8}
 W-DATE: \d{8}
 W-BATCH: \d{16}
-COMPLET : \d{8} \d{8}
+COMPLET : \d{16}
 TEST : \d{16}

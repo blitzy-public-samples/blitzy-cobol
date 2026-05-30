@@ -52,7 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>{@code ^W-TIME: \d{8}$} &mdash; no space before colon, 8 digits HHmmssNN</li>
  *   <li>{@code ^W-DATE: \d{8}$} &mdash; no space before colon, 8 digits YYYYMMDD</li>
  *   <li>{@code ^W-BATCH: \d{16}$} &mdash; no space before colon, 16 digits</li>
- *   <li>{@code ^COMPLET : \d{8} \d{8}$} &mdash; <strong>space before colon</strong>, 8 + space + 8 digits</li>
+ *   <li>{@code ^COMPLET : \d{16}$} &mdash; <strong>space before colon</strong>, 16 contiguous digits (STRING ... DELIMITED BY SPACE inserts no separator)</li>
  *   <li>{@code ^TEST : \d{16}$} &mdash; <strong>space before colon</strong>, 16 digits</li>
  * </ol>
  */

@@ -61,6 +61,10 @@ public class HelloWorldApplicationTest {
             expected = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
 
-        assertEquals(expected.trim(), actual.trim());
+        // Byte-exact golden-output comparison (AAP §0.7.1): normalize only line
+        // endings (CRLF -> LF) for cross-platform stability -- unlike trim(), this
+        // does NOT mask missing/extra line terminators or surrounding whitespace,
+        // preserving the byte-faithful golden-output guarantee.
+        assertEquals(expected.replace("\r\n", "\n"), actual.replace("\r\n", "\n"));
     }
 }

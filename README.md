@@ -57,26 +57,18 @@ This project is licensed under the terms of the **GNU General Public License v3.
 Java 21 / Spring Boot Build
 ===========================
 
-This repository is being extended with Java 21 / Spring Boot 3.x translations of the OpenCobol sample programs. The original `.cbl` files under `OpenCobol/` remain in place as the authoritative references; the Java translations live in per-topic Maven sub-modules at the repository root and are added incrementally, one topic at a time.
+This repository has been extended with Java 21 / Spring Boot 3.x translations of the OpenCobol sample programs. The original `.cbl` files under `OpenCobol/` remain in place as the authoritative references; the Java translations live in per-topic Maven sub-modules at the repository root. All eleven sub-modules are present and built by the Maven reactor.
 
 ### Prerequisites
 
  * Java 21 JDK (for example, Eclipse Temurin 21 — https://adoptium.net/)
  * Apache Maven 3.9 or newer (https://maven.apache.org/download.cgi)
 
-### Currently available sub-modules
+### Available sub-modules
 
-The Maven reactor currently builds the following sub-modules:
+All eleven Java sub-modules are present and built by the Maven reactor: `cobol-helloworld`, `cobol-conditions`, `cobol-database`, `cobol-date`, `cobol-loops`, `cobol-memory`, `cobol-random`, `cobol-sqlite`, `cobol-sort`, `cobol-string`, and `cobol-struct`. Each maps one OpenCobol topic to one Maven sub-module; the full catalog, with source-file mapping and notes, is listed at the end of this section.
 
-| Sub-module | Source COBOL | Notes |
-|---|---|---|
-| `cobol-sort` | `OpenCobol/Sort/*.cbl` (3 files) | Bubble, insertion, and selection sort over `int[]`; three entry classes share one JAR |
-| `cobol-string` | `OpenCobol/String/String.cbl` | `String.substring` translation of COBOL reference modification |
-| `cobol-struct` | `OpenCobol/Struct/Struct.cbl` | Grouped `OCCURS` arrays via Java arrays / records |
-
-The remaining topics (`cobol-helloworld`, `cobol-conditions`, `cobol-database`, `cobol-date`, `cobol-loops`, `cobol-memory`, `cobol-random`, `cobol-sqlite`) are translated and added in subsequent stages; each is appended to the root `pom.xml` `<modules>` list in the same change that introduces it. The full target catalog is listed at the end of this section.
-
-### Build all available sub-modules
+### Build all sub-modules
 
 ```sh
 git clone https://github.com/Martinfx/Cobol.git
@@ -89,12 +81,14 @@ This produces an executable Spring Boot JAR per sub-module under `cobol-<topic>/
 ### Run a sample
 
 ```sh
-java -jar cobol-string/target/cobol-string-1.0.0.jar
+java -jar cobol-helloworld/target/cobol-helloworld-1.0.0.jar
 ```
 
-### Running a multi-entry sub-module (`cobol-sort`)
+This runs the `cobol-helloworld` translation, which prints `Hello world!`.
 
-`cobol-sort` contains three Spring Boot entry classes that share a single JAR. Running the JAR with no extra options runs the default entry class (`BubbleSortApplication`):
+### Running a multi-entry sub-module
+
+Several sub-modules contain more than one Spring Boot entry class sharing a single JAR — `cobol-conditions` (8 classes), `cobol-database` (4), `cobol-loops` (2), `cobol-memory` (2), `cobol-random` (2), and `cobol-sort` (3). Using `cobol-sort` as the example: running the JAR with no extra options runs the default entry class (`BubbleSortApplication`):
 
 ```sh
 java -jar cobol-sort/target/cobol-sort-1.0.0.jar
@@ -107,7 +101,7 @@ java -Dloader.main=com.projectcobol.sort.InsertSortApplication -jar cobol-sort/t
 java -Dloader.main=com.projectcobol.sort.SelectSortApplication -jar cobol-sort/target/cobol-sort-1.0.0.jar
 ```
 
-Each entry class disables sibling component scanning, so exactly one COBOL sort translation runs per invocation.
+Each entry class disables sibling component scanning, so exactly one COBOL translation runs per invocation. The same `-Dloader.main=<fully.qualified.ClassName>` mechanism selects any entry class in the other multi-entry sub-modules (for example `com.projectcobol.conditions.SignConditionApplication` in `cobol-conditions`).
 
 ### Run the test suite
 
@@ -115,11 +109,11 @@ Each entry class disables sibling component scanning, so exactly one COBOL sort 
 mvn test
 ```
 
-Each sub-module ships golden-output fixtures under `src/test/resources/expected/<ClassName>.txt`. JUnit 5 golden-output test classes — which capture `System.out` and compare it against the matching fixture — are added alongside each module; `mvn test` runs whatever tests are present on the branch.
+Each sub-module ships golden-output fixtures under `src/test/resources/expected/<ClassName>.txt`. JUnit 5 golden-output test classes — which capture `System.out` and compare it against the matching fixture — accompany every entry class, and `cobol-sqlite` additionally includes a SQL-injection regression test. `mvn test` runs the full suite across all eleven sub-modules.
 
-### Target sub-module catalog
+### Sub-module catalog
 
-The complete set of planned Java sub-modules (delivered incrementally) is:
+The complete set of Java sub-modules (all delivered and built by the reactor) is:
 
 | Sub-module | Source COBOL | Notes |
 |---|---|---|

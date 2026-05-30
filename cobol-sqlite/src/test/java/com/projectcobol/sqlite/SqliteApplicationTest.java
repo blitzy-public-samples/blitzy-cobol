@@ -167,9 +167,18 @@ class SqliteApplicationTest {
      * <p>Per AAP &sect;0.7.1, this validates the JUnit 5 golden-output testing
      * pattern with fixture path {@code src/test/resources/expected/SqliteApplication.txt}.
      *
+     * <p>The fixture's first line is the COBOL-faithful {@code Err:    <message>}
+     * report (finding F5 / AAP &sect;0.6.2): the in-memory test database is fresh,
+     * so the verbatim {@code drop table trial;} in
+     * {@link SqliteApplication#initializeSchema(Connection)} fails with
+     * "no such table: trial", and {@link SqliteApplication#ocsqlExec(Connection, String)}
+     * reports it COBOL-style and continues (the error is reported, not suppressed).
+     * Because the test pins {@code sqlite-jdbc:3.53.1.0}, that message is
+     * deterministic, so the fixture matches it as a literal line.
+     *
      * <p>Empty stdin is injected so {@link SqliteApplication#acceptKeyFieldAndQuery(Connection)}
      * returns early via {@code if (!scanner.hasNextLine()) return;}, producing
-     * no additional output beyond the lines from
+     * no additional output beyond the leading {@code Err:} line and the lines from
      * {@link SqliteApplication#displayAllRowsReverse(Connection)} (one summary
      * line followed by the reverse-ordered, pipe-delimited per-field detail lines).
      *
@@ -178,7 +187,8 @@ class SqliteApplicationTest {
     @Test
     void producesGoldenOutputMatchingFixture() throws Exception {
         // Capture stdout via an injected ByteArrayOutputStream-wrapped PrintStream.
-        // Empty stdin -> acceptKeyFieldAndQuery returns early, leaving only the
+        // Empty stdin -> acceptKeyFieldAndQuery returns early, leaving the leading
+        // Err: line (fresh-DB DROP failure, reported by ocsqlExec) plus the
         // displayAllRowsReverse output to compare against the fixture.
         ByteArrayOutputStream captured = new ByteArrayOutputStream();
         PrintStream capturedOut = new PrintStream(captured, true, StandardCharsets.UTF_8);

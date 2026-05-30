@@ -40,9 +40,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@code MY-DATA-STRUCT} group ({@code OpenFileRecordKey.cbl:L28-31}) is a fixed
  * 25-character layout composed of {@code DATA-ID PIC X(5)},
  * {@code DATA-NAME PIC X(10)} and {@code DATA-TIME PIC X(10)}. The production class
- * reads the 36-record classpath fixture {@code data.txt}, tokenizes each line by
- * whitespace and re-emits it through {@code String.format("%-5s%-10s%-10s", ...)},
- * so the captured output is exactly {@code 36 records × 1 line = 36 lines}
+ * reads the 36-record classpath fixture {@code data.txt}, normalizes each line to
+ * the fixed 25-character COBOL record width (right-padded with spaces, or
+ * truncated) and extracts the {@code DATA-ID}, {@code DATA-NAME} and
+ * {@code DATA-TIME} fields by their fixed COBOL byte offsets ({@code [0,5)},
+ * {@code [5,15)}, {@code [15,25)}) via {@code String.substring}, so the captured
+ * output is exactly {@code 36 records × 1 line = 36 lines}
  * ({@code 936} bytes: 36 × (25 chars + LF)).
  *
  * <p>The production {@link OpenFileRecordKeyApplication#run(String...)} method is

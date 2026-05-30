@@ -53,17 +53,30 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * <p>Structural translation summary (per AAP &sect;0.6.2):
  * <ul>
  *   <li>{@code call "ocsqlite_init"} &rarr; {@link DriverManager#getConnection(String)}</li>
- *   <li>{@code call "ocsqlite"} text-substitution &rarr; {@link PreparedStatement#executeQuery()}</li>
+ *   <li>{@code ocsql-exec} paragraph (lines 288-308, text-substitution execution +
+ *       {@code if result not equal 0 display "Err:    " errstr}) &rarr;
+ *       {@link #ocsqlExec(Connection, String)}, which executes the verbatim SQL and
+ *       reports failures COBOL-style ({@code Err:    <message>}) then continues</li>
+ *   <li>{@code call "ocsqlite"} user-input text-substitution &rarr;
+ *       parameterized {@link PreparedStatement#executeQuery()} (THE SECURITY FIX)</li>
  *   <li>{@code callback} sub-program (lines 333-395) &rarr; inline {@code while (rs.next())} loop</li>
  *   <li>20-row {@code sql-table external} buffer &rarr; streaming {@link ResultSet}</li>
  *   <li>SCREEN SECTION {@code accept entry-screen} &rarr; {@link Scanner#nextLine()}</li>
  *   <li>{@code call "ocsqlite_close"} &rarr; try-with-resources auto-close</li>
  * </ul>
  *
- * <p>SQL DDL/DML strings ({@code CREATE TABLE trial}, {@code INSERT}s with
- * {@code randomblob}, {@code hex}, {@code lower}, {@code datetime}, {@code julianday}
- * SQLite functions) are preserved character-for-character from the COBOL source;
- * only the execution mechanism changes.
+ * <p>SQL DDL/DML strings ({@code drop table trial;}, {@code create table trial (...);},
+ * the compound {@code insert}s with {@code randomblob}, {@code hex}, {@code lower},
+ * {@code datetime}, {@code julianday} SQLite functions, and {@code select * from trial;})
+ * are preserved character-for-character from the COBOL source in the
+ * {@link #QUERY_DROP_TABLE}, {@link #QUERY_CREATE_TABLE}, {@link #QUERY_INSERT}, and
+ * {@link #QUERY_SELECT_ALL} constants &mdash; including the trailing semicolons and the
+ * double-quoted {@code "something"} literal. Only the <em>execution mechanism</em>
+ * changes, in two explicitly documented ways: (1) {@link #ocsqlExec(Connection, String)}
+ * splits a verbatim compound statement on {@code ;} because JDBC executes one
+ * statement per call; and (2) the single SELECT that consumes user input is
+ * parameterized via {@link PreparedStatement} (the permitted SQL-injection fix).
+ * The SQL <em>content</em> is otherwise identical to the COBOL literals.
  *
  * <p>Per the AAP filename-traceability rule (&sect;0.7.3), the Java class name follows
  * the source filename ({@code Hello_SQLITE.cbl} &rarr; {@code SqliteApplication})
@@ -79,6 +92,68 @@ public class SqliteApplication implements CommandLineRunner {
      * the trailing {@code x'00'} null terminator that the COBOL C-string needed.
      */
     static final String DEFAULT_JDBC_URL = "jdbc:sqlite:test.db";
+
+    /**
+     * Verbatim COBOL SQL string, preserved character-for-character per the AAP
+     * &sect;0.6.2 "Verbatim SQL Preservation Rule" &mdash; including the trailing
+     * semicolon present in the COBOL source. Translates
+     * {@code move "drop table trial;" to query}
+     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L188}). Only the execution
+     * mechanism changes (text-substitution {@code ocsqlite} call &rarr;
+     * {@link #ocsqlExec(Connection, String)} / {@link Statement#execute(String)});
+     * the SQL text itself is identical to the COBOL literal.
+     */
+    static final String QUERY_DROP_TABLE = "drop table trial;";
+
+    /**
+     * Verbatim COBOL SQL string, preserved character-for-character per AAP
+     * &sect;0.6.2 &mdash; including the trailing semicolon. Translates
+     * {@code move "create table trial (first integer primary key, " &
+     * "second char(20), third date);" to query}
+     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L191-192}). The literal spelling
+     * (lower-case keywords, column list, {@code char(20)}) is identical to the
+     * COBOL source; only the execution mechanism changes.
+     */
+    static final String QUERY_CREATE_TABLE =
+            "create table trial (first integer primary key, "
+          + "second char(20), third date);";
+
+    /**
+     * Verbatim COBOL SQL string, preserved character-for-character per AAP
+     * &sect;0.6.2 &mdash; a compound statement containing TWO {@code insert}s
+     * separated by a semicolon, and ending with a trailing semicolon. Translates
+     * <pre>
+     *     move 'insert into trial (first, second, third) values ' &amp;
+     *         '(null, lower(hex(randomblob(20))), datetime()); ' &amp;
+     *         'insert into trial values (null, "something",' &amp;
+     *         ' julianday());' to query
+     * </pre>
+     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L204-208}, executed twice; see
+     * {@link #populateData(Connection)}). The COBOL double-quoted string literal
+     * {@code "something"} is preserved <em>verbatim</em> (double quotes retained);
+     * SQLite's compatibility quirk interprets a double-quoted token with no
+     * matching identifier as the string value {@code something}, so this is
+     * functionally identical to the COBOL behavior. The SQLite functions
+     * {@code lower}, {@code hex}, {@code randomblob}, {@code datetime}, and
+     * {@code julianday} are preserved character-for-character.
+     */
+    static final String QUERY_INSERT =
+            "insert into trial (first, second, third) values "
+          + "(null, lower(hex(randomblob(20))), datetime()); "
+          + "insert into trial values (null, \"something\","
+          + " julianday());";
+
+    /**
+     * Verbatim COBOL SQL string, preserved character-for-character per AAP
+     * &sect;0.6.2 &mdash; including the trailing semicolon. Translates
+     * {@code move "select * from trial;" to query}
+     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L244}). Executed via
+     * {@link Statement#executeQuery(String)} (which accepts the trailing
+     * semicolon) in {@link #displayAllRowsReverse(Connection)} because this
+     * SELECT feeds a {@link ResultSet}; it carries no user input and therefore
+     * needs no {@link PreparedStatement}.
+     */
+    static final String QUERY_SELECT_ALL = "select * from trial;";
 
     /**
      * JDBC connection URL. Production defaults to {@link #DEFAULT_JDBC_URL}.
@@ -207,58 +282,36 @@ public class SqliteApplication implements CommandLineRunner {
      * </pre>
      *
      * <p>The SQL strings are preserved character-for-character per AAP &sect;0.6.2
-     * "Verbatim SQL Preservation Rule". Only the execution mechanism changes
-     * (text-substitution {@code ocsqlite} call &rarr; {@link Statement#execute(String)}).
-     * The DROP statement is the verbatim COBOL SQL {@code drop table trial}; no
-     * {@code IF EXISTS} clause is added, because doing so would be a behavioral
-     * change beyond the single permitted SQL-injection fix and would violate the
-     * AAP &sect;0.7.2 minimal-change clause.
+     * "Verbatim SQL Preservation Rule" &mdash; they are the {@link #QUERY_DROP_TABLE}
+     * and {@link #QUERY_CREATE_TABLE} constants, which retain the COBOL trailing
+     * semicolons and literal spelling. The DROP statement is the verbatim COBOL SQL
+     * {@code drop table trial;}; no {@code IF EXISTS} clause is added, because doing
+     * so would be a behavioral change beyond the single permitted SQL-injection fix
+     * and would violate the AAP &sect;0.7.2 minimal-change clause.
      *
-     * <p>The COBOL {@code ocsql-exec} paragraph
-     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L306-308}) checks
-     * {@code if result not equal 0}, reports the error and then falls through to
-     * the next statement &mdash; it does NOT abort on failure. On a fresh database
-     * the verbatim {@code drop table trial} fails with "no such table: trial";
-     * this translation reproduces that non-aborting continuation by catching the
-     * first-run {@link SQLException} and proceeding to the CREATE TABLE below. The
-     * golden-output fixture captures the steady-state run (the {@code trial} table
-     * already exists), in which the DROP succeeds and no error arises.
+     * <p>Both statements are routed through {@link #ocsqlExec(Connection, String)},
+     * the faithful translation of the COBOL {@code ocsql-exec} paragraph
+     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L306-308}), which on a nonzero
+     * result {@code display "Err:    " errstr} and then <em>falls through</em> to
+     * the next statement rather than aborting. On a fresh database (the in-memory
+     * test database, and the first run of a file-backed {@code test.db}) the
+     * verbatim {@code drop table trial;} fails with "no such table: trial"; this
+     * translation reports that error COBOL-style ({@code Err:    <message>}) and
+     * continues to the CREATE TABLE, exactly mirroring the COBOL behavior. The
+     * golden-output fixture therefore begins with that {@code Err:} line.
      *
      * @param conn open JDBC connection
-     * @throws SQLException if the CREATE TABLE DDL statement fails (a failed DROP
-     *                      is absorbed to mirror the COBOL continuation semantics)
      */
-    void initializeSchema(Connection conn) throws SQLException {
+    void initializeSchema(Connection conn) {
         // COBOL: move "drop table trial;" to query; perform ocsql-exec [L188-189]
-        //   -> Java: Statement.execute("drop table trial")
-        // SQL preserved character-for-character per AAP §0.6.2 verbatim rule: the
-        // COBOL source uses "drop table trial" (no IF EXISTS). Adding IF EXISTS
-        // would be an extra behavioral change beyond the single permitted SQL-
-        // injection fix, so it is NOT used here.
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("drop table trial");
-        } catch (SQLException dropError) {
-            // ocsql-exec error/continuation semantics [Hello_SQLITE.cbl:L306-308]:
-            // the COBOL paragraph checks "if result not equal 0", reports the error
-            // and falls through to the next statement rather than aborting. On a
-            // fresh database the verbatim DROP fails with "no such table: trial";
-            // like the COBOL program, this translation absorbs that first-run
-            // failure and continues to the CREATE TABLE below. The dropError is
-            // intentionally NOT written to the captured output stream so the
-            // golden-output fixture (which records the steady-state run where the
-            // table already exists and the DROP succeeds) remains byte-exact.
-            assert dropError != null : "caught SQLException must be non-null";
-        }
+        //   -> Java: ocsqlExec(conn, QUERY_DROP_TABLE) (verbatim SQL incl. semicolon).
+        // On a fresh database the DROP fails; ocsqlExec reports "Err:    <message>"
+        // and continues, exactly like the COBOL ocsql-exec paragraph [L306-308].
+        ocsqlExec(conn, QUERY_DROP_TABLE);
 
-        // COBOL: move "create table trial (first integer primary key, "
-        //              "second char(20), third date);" to query;
-        //        perform ocsql-exec [L191-193]
-        //   -> Java: Statement.execute(<verbatim SQL>)
-        // SQL preserved character-for-character per AAP §0.6.2 verbatim rule.
-        try (Statement stmt = conn.createStatement()) {
-            stmt.execute("create table trial (first integer primary key, "
-                       + "second char(20), third date)");
-        }
+        // COBOL: move "create table trial (...);" to query; perform ocsql-exec [L191-193]
+        //   -> Java: ocsqlExec(conn, QUERY_CREATE_TABLE) (verbatim SQL incl. semicolon).
+        ocsqlExec(conn, QUERY_CREATE_TABLE);
     }
 
     /**
@@ -279,35 +332,88 @@ public class SqliteApplication implements CommandLineRunner {
      * inserts two rows, so the {@code trial} table ends up with 4 rows total
      * (matching the COBOL behavior).
      *
-     * <p>SQL preserved character-for-character per AAP &sect;0.6.2; only the
-     * execution mechanism changes. COBOL's double-quoted string literal
-     * {@code "something"} is rendered with SQL single quotes (SQLite accepts
-     * both, but single quotes are SQL-standard and avoid Java string-escape
-     * complications).
+     * <p>SQL preserved character-for-character per AAP &sect;0.6.2 &mdash; the
+     * {@link #QUERY_INSERT} constant retains the COBOL compound statement
+     * exactly, including the embedded and trailing semicolons and the
+     * <em>double-quoted</em> string literal {@code "something"}. Only the
+     * execution mechanism changes: {@link #ocsqlExec(Connection, String)} splits
+     * the verbatim compound statement on {@code ;} (a documented
+     * execution-mechanism exception, because JDBC's
+     * {@link Statement#execute(String)} processes one statement at a time) and
+     * executes each fragment. SQLite's compatibility quirk interprets the
+     * double-quoted {@code "something"} as the string value {@code something},
+     * so the verbatim double quotes are functionally identical to the COBOL
+     * behavior.
      *
      * @param conn open JDBC connection
-     * @throws SQLException if either INSERT batch fails
      */
-    void populateData(Connection conn) throws SQLException {
+    void populateData(Connection conn) {
         // COBOL: move 'insert into trial (first, second, third) values '
         //              '(null, lower(hex(randomblob(20))), datetime()); '
         //              'insert into trial values (null, "something", julianday());'
         //         to query; perform ocsql-exec  [L204-208, L220-224 - executed TWICE]
-        //   -> Java: Statement.execute(...) for each of the two statements,
-        //           repeated to match the COBOL's duplicate execution behavior.
-        // The two SQL statements are split here because JDBC's
-        // Statement.execute typically processes one SQL statement at a time.
-        String insertRandom =
-                "insert into trial (first, second, third) values "
-              + "(null, lower(hex(randomblob(20))), datetime())";
-        String insertSomething =
-                "insert into trial values (null, 'something', julianday())";
-
-        // Execute the compound INSERT twice (matches COBOL lines 204-208 and 220-224).
+        //   -> Java: ocsqlExec(conn, QUERY_INSERT) for each of the two COBOL
+        //           invocations. QUERY_INSERT is the verbatim compound SQL; ocsqlExec
+        //           splits it on ';' (execution-mechanism exception) and runs each
+        //           statement, reporting any failure COBOL-style and continuing.
         for (int i = 0; i < 2; i++) {
+            ocsqlExec(conn, QUERY_INSERT);
+        }
+    }
+
+    /**
+     * Faithful Java translation of the COBOL {@code ocsql-exec} paragraph
+     * ({@code OpenCobol/SQLite/Hello_SQLITE.cbl:L288-308}). In the COBOL source
+     * this paragraph builds a null-terminated C string from the {@code query}
+     * buffer, passes it to the {@code ocsqlite} C binding for execution, and
+     * &mdash; critically &mdash; on a nonzero result reports the error and
+     * <em>falls through</em> rather than aborting:
+     * <pre>
+     *     call "ocsqlite" using by value db callback-proc by reference zquery ...
+     *     if result not equal 0
+     *         display "Err:    " errstr end-display
+     *     end-if
+     * </pre>
+     *
+     * <p>This method preserves that error-reporting/continuation behavior exactly
+     * (per finding F5 / AAP &sect;0.6.2): on a {@link SQLException} it writes
+     * {@code "Err:    " + message} to the {@link #output} sink (the COBOL literal
+     * has four spaces after the colon) and continues to the next statement. The
+     * error is NOT suppressed &mdash; suppressing it would be a behavioral change
+     * beyond the single permitted SQL-injection remediation.
+     *
+     * <p><strong>Execution-mechanism exception (documented per AAP &sect;0.6.2):</strong>
+     * the COBOL {@code ocsqlite}/{@code sqlite3_exec} binding executes an entire
+     * multi-statement SQL string in one call, but JDBC's
+     * {@link Statement#execute(String)} processes only the first statement of a
+     * compound string. To reproduce the COBOL multi-statement behavior while
+     * keeping the SQL <em>content</em> verbatim, this method splits the verbatim
+     * {@code query} on the statement separator {@code ;} and executes each
+     * non-empty fragment in turn. None of the preserved SQL literals contain a
+     * semicolon inside a string literal, so this split is unambiguous.
+     *
+     * @param conn  open JDBC connection
+     * @param query the verbatim COBOL SQL string (may contain multiple {@code ;}
+     *              separated statements and a trailing {@code ;})
+     */
+    void ocsqlExec(Connection conn, String query) {
+        // Execution-mechanism exception: split the verbatim multi-statement query
+        // on ';' so every COBOL statement runs (JDBC executes one at a time). The
+        // SQL CONTENT in the QUERY_* constants stays verbatim; only HOW it is
+        // dispatched to the driver changes.
+        for (String fragment : query.split(";")) {
+            String sql = fragment.trim();
+            if (sql.isEmpty()) {
+                // Skip the empty trailing fragment produced by the trailing ';'.
+                continue;
+            }
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute(insertRandom);
-                stmt.execute(insertSomething);
+                stmt.execute(sql);
+            } catch (SQLException ex) {
+                // COBOL ocsql-exec [L306-308]: if result not equal 0,
+                //   display "Err:    " errstr  (four spaces after the colon),
+                // then fall through to the next statement. We report and continue.
+                output.println("Err:    " + ex.getMessage());
             }
         }
     }
@@ -372,10 +478,12 @@ public class SqliteApplication implements CommandLineRunner {
         List<String[]> rows = new ArrayList<>();
 
         // COBOL: move "select * from trial;" to query; perform ocsql-exec [L244-246]
-        //   -> Java: Statement.executeQuery("select * from trial")
+        //   -> Java: Statement.executeQuery(QUERY_SELECT_ALL)
+        // QUERY_SELECT_ALL is the verbatim COBOL SQL "select * from trial;" (incl.
+        // the trailing semicolon, which executeQuery accepts) per AAP §0.6.2.
         // No user input -> no PreparedStatement needed -> no injection risk.
         try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("select * from trial")) {
+             ResultSet rs = stmt.executeQuery(QUERY_SELECT_ALL)) {
             // COBOL callback (lines 333-395) populated sql-records via row-counter;
             // here we iterate the ResultSet directly, eliminating the callback
             // sub-program and the procedure-pointer (callback-proc) [L90, L152].

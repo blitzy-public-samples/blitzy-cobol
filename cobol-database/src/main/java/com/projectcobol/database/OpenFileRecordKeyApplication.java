@@ -37,11 +37,16 @@ import java.nio.charset.StandardCharsets;
  * <p>Reads the classpath-loaded {@code data.txt} fixture and emits one
  * 25-character record per line, matching the COBOL {@code DISPLAY MY-DATA-STRUCT}
  * behavior on {@code OpenFileRecordKey.cbl:L58}. Each line in {@code data.txt} is
- * tokenized by whitespace into the {@code DATA-ID}, {@code DATA-NAME}, and
+ * normalized to the fixed COBOL record width (right-padded with spaces, or
+ * truncated, to 25 characters), then the {@code DATA-ID}, {@code DATA-NAME}, and
  * {@code DATA-TIME} fields of the COBOL {@code MY-DATA-STRUCT} group
- * ({@code OpenFileRecordKey.cbl:L28-31}) and formatted with
- * {@code %-5s%-10s%-10s} to enforce the COBOL {@code PIC X} widths
- * (5 + 10 + 10 = 25).
+ * ({@code OpenFileRecordKey.cbl:L28-31}) are extracted by their fixed COBOL byte
+ * offsets ({@code [0,5)}, {@code [5,15)}, {@code [15,25)}) via
+ * {@link String#substring(int, int)}, preserving the COBOL {@code PIC X} widths
+ * (5 + 10 + 10 = 25). Fixed-offset extraction is required by AAP &sect;0.4.1
+ * (&quot;record fields &rarr; {@code String.substring} extraction&quot;) and keeps
+ * the field boundaries on COBOL byte positions rather than re-flowing
+ * whitespace-delimited tokens.
  *
  * <p>The COBOL original opens the fixed-width file {@code ../data.dat} via
  * {@code OPEN I-O DATA-FILE} ({@code OpenFileRecordKey.cbl:L12, L41}); this Java
@@ -89,6 +94,16 @@ public class OpenFileRecordKeyApplication implements CommandLineRunner {
      * ({@code OpenFileRecordKey.cbl:L12}), per AAP &sect;0.4.1 row 10.
      */
     private static final String DATA_RESOURCE = "data.txt";
+
+    /**
+     * Fixed width, in characters, of the COBOL {@code MY-DATA-STRUCT} record:
+     * {@code DATA-ID PIC X(5)} + {@code DATA-NAME PIC X(10)} +
+     * {@code DATA-TIME PIC X(10)} = 25 ({@code OpenFileRecordKey.cbl:L28-31}).
+     * Each fixture line is normalized to this width before fixed-offset field
+     * extraction, reproducing how a COBOL line-sequential {@code READ ... INTO}
+     * fills a fixed-length record.
+     */
+    private static final int RECORD_LENGTH = 25;
 
     /**
      * Synthetic constant mirroring the COBOL literal
@@ -220,17 +235,20 @@ public class OpenFileRecordKeyApplication implements CommandLineRunner {
     /**
      * Translation of the COBOL {@code READ-FILE SECTION}
      * ({@code OpenFileRecordKey.cbl:L52-62}). Iterates
-     * {@link BufferedReader#readLine()} until end-of-file, tokenizing each line
-     * into the {@code MY-DATA-STRUCT} fields and emitting one 25-character
-     * output line via {@link System#out}.
+     * {@link BufferedReader#readLine()} until end-of-file, normalizing each line to
+     * the fixed 25-character COBOL record width, extracting the
+     * {@code MY-DATA-STRUCT} fields by their fixed COBOL byte offsets, and emitting
+     * one 25-character output line via {@link System#out}.
      *
      * <p>Each output line mirrors {@code DISPLAY MY-DATA-STRUCT} on
-     * {@code OpenFileRecordKey.cbl:L58}, formatted as {@code %-5s%-10s%-10s} to
-     * enforce the COBOL {@code PIC X} widths (5 + 10 + 10 = 25). Java's
-     * {@code %-Ns} format left-justifies and right-pads with spaces but does NOT
-     * truncate; every token in the {@code data.txt} fixture fits within its
-     * COBOL width (the widest {@code DATA-NAME} / {@code DATA-TIME} token is six
-     * characters), so the output is exactly 25 characters per record.
+     * {@code OpenFileRecordKey.cbl:L58}: a COBOL group {@code DISPLAY} emits the
+     * concatenation of its elementary items, so the emitted line is exactly the
+     * 25-character record ({@code DATA-ID} {@code [0,5)} + {@code DATA-NAME}
+     * {@code [5,15)} + {@code DATA-TIME} {@code [15,25)}), including any embedded
+     * and trailing spaces. The line is first space-padded (or truncated) to the
+     * {@value #RECORD_LENGTH}-character width via
+     * {@link #padOrTruncate(String, int)}, reproducing how a COBOL line-sequential
+     * {@code READ ... INTO} fills a fixed-length record.
      *
      * @param br the buffered reader over the classpath {@value #DATA_RESOURCE}
      *           fixture
@@ -243,19 +261,50 @@ public class OpenFileRecordKeyApplication implements CommandLineRunner {
         String line;
         // COBOL: PERFORM UNTIL EOF = 'Y' / READ DATA-FILE INTO MY-DATA-STRUCT.
         while (!eof && (line = br.readLine()) != null) {
-            // The COBOL record is a fixed 25-char layout (DATA-ID 5 + DATA-NAME 10
-            // + DATA-TIME 10). The data.txt fixture is whitespace-delimited, so
-            // each line is tokenized into the three MY-DATA-STRUCT fields; absent
-            // tokens default to the empty string so a short line never throws
-            // ArrayIndexOutOfBoundsException.
-            String[] tokens = line.trim().split("\\s+");
-            dataId   = tokens.length > 0 ? tokens[0] : "";
-            dataName = tokens.length > 1 ? tokens[1] : "";
-            dataTime = tokens.length > 2 ? tokens[2] : "";
-            // COBOL: NOT AT END -> DISPLAY MY-DATA-STRUCT (25-char fixed width).
-            System.out.println(String.format("%-5s%-10s%-10s", dataId, dataName, dataTime));
+            // COBOL reads each record INTO the fixed 25-char MY-DATA-STRUCT group
+            // (DATA-ID PIC X(5) + DATA-NAME PIC X(10) + DATA-TIME PIC X(10)). A
+            // line-sequential READ right-pads a short line with spaces and
+            // truncates a long line to the record width, so normalize the source
+            // line to exactly RECORD_LENGTH characters before fixed-offset
+            // extraction.
+            String record = padOrTruncate(line, RECORD_LENGTH);
+            // Fixed-offset field extraction on the COBOL byte positions of the
+            // MY-DATA-STRUCT group. COBOL columns are 1-based; Java substring uses
+            // 0-based, end-exclusive bounds:
+            //   DATA-ID   cols 1-5   -> [0, 5)
+            //   DATA-NAME cols 6-15  -> [5, 15)
+            //   DATA-TIME cols 16-25 -> [15, 25)
+            dataId   = record.substring(0, 5);
+            dataName = record.substring(5, 15);
+            dataTime = record.substring(15, 25);
+            // COBOL: NOT AT END -> DISPLAY MY-DATA-STRUCT. A group DISPLAY emits the
+            // concatenation of its elementary items, reconstructing the 25-char
+            // record exactly (embedded + trailing spaces preserved).
+            System.out.println(dataId + dataName + dataTime);
         }
         eof = true; // COBOL: AT END -> MOVE 'Y' TO EOF
+    }
+
+    /**
+     * Normalizes a source line to a fixed COBOL record width, reproducing how a
+     * COBOL line-sequential {@code READ ... INTO} populates a fixed-length record:
+     * a shorter line is right-padded with spaces, a longer line is truncated to the
+     * record width.
+     *
+     * @param line   the raw line read from the fixture (never {@code null})
+     * @param length the COBOL record width in characters
+     * @return the line normalized to exactly {@code length} characters
+     */
+    private static String padOrTruncate(String line, int length) {
+        if (line.length() >= length) {
+            return line.substring(0, length);
+        }
+        StringBuilder padded = new StringBuilder(length);
+        padded.append(line);
+        while (padded.length() < length) {
+            padded.append(' ');
+        }
+        return padded.toString();
     }
 
     /**

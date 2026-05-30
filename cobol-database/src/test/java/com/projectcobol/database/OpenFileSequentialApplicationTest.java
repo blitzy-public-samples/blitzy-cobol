@@ -38,21 +38,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * 64-67), which emits a single labeled {@code DISPLAY} line per record:
  * {@code DISPLAY "ID: " DET-ID " STR: " DET-TIME " DET-NUM: " DET-NUM}. The
  * production class reads the 36-record classpath fixture {@code data.txt},
- * tokenizes each line by whitespace into the {@code DET-ID}, {@code DET-TIME}
- * and {@code DET-NUM} fields and formats them with {@code %-5s} / {@code %-5s}
- * / {@code %-6s} to enforce the COBOL {@code PIC X} widths (5 / 5 / 6) declared
- * in the {@code DETAILS} record, so the captured output is exactly
- * {@code 36 records = 36 lines}.
+ * normalizes each line to the fixed 16-character COBOL record width
+ * (right-padded with spaces, or truncated) and extracts the {@code DET-ID},
+ * {@code DET-TIME} and {@code DET-NUM} fields by their fixed COBOL byte offsets
+ * ({@code [0,5)}, {@code [5,10)}, {@code [10,16)}) via {@code String.substring},
+ * so the captured output is exactly {@code 36 records = 36 lines}.
  *
- * <p>Java's {@code %-Ns} format left-justifies and right-pads with spaces but
- * does NOT truncate, so the fixture is a faithful, mixed-width capture of the
- * COBOL data rather than a uniform 36-character block. Thirty-four records emit
- * the standard 36-character line; the two records whose {@code DET-TIME} token
- * is six characters ({@code DATa45}, {@code DATA50}) emit a 37-character line;
- * and the single record whose {@code DET-NUM} token is five characters
- * ({@code 02061}) is right-padded to the COBOL six-character width
- * ({@code "02061 "}). The resulting fixture is therefore
- * {@code 34 * 36 + 2 * 37 + 36 line feeds = 1334} bytes.
+ * <p>Because each field is a fixed-width slice of the 16-character record, every
+ * emitted line has the same shape: the literal {@code "ID: "} (4) +
+ * {@code DET-ID} (5) + {@code " STR: "} (6) + {@code DET-TIME} (5) +
+ * {@code " DET-NUM: "} (10) + {@code DET-NUM} (6) = 36 characters, plus a line
+ * feed. The resulting fixture is therefore {@code 36 * (36 + 1) = 1332} bytes.
  *
  * <p>The production {@link OpenFileSequentialApplication#run(String...)} method
  * is invoked directly via {@code new OpenFileSequentialApplication().run(new

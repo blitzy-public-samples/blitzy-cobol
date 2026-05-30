@@ -39,10 +39,16 @@ import java.nio.charset.StandardCharsets;
  * record per line, matching the COBOL
  * {@code DISPLAY "ID: " DET-ID " STR: " DET-TIME " DET-NUM: " DET-NUM} statement
  * on {@code OpenFileSequential.cbl:L67}. Each line in {@code data.txt} is
- * tokenized by whitespace into {@code DET-ID}, {@code DET-TIME} and
- * {@code DET-NUM} fields and formatted with {@code %-5s} / {@code %-6s} to
- * enforce the COBOL {@code PIC X} widths (5 / 5 / 6) declared in the
- * {@code DETAILS} record ({@code OpenFileSequential.cbl:L21-26}).
+ * normalized to the fixed COBOL record width (right-padded with spaces, or
+ * truncated, to 16 characters), then the {@code DET-ID}, {@code DET-TIME} and
+ * {@code DET-NUM} fields of the COBOL {@code DETAILS} record
+ * ({@code OpenFileSequential.cbl:L21-26}) are extracted by their fixed COBOL byte
+ * offsets ({@code [0,5)}, {@code [5,10)}, {@code [10,16)}) via
+ * {@link String#substring(int, int)}, preserving the COBOL {@code PIC X} widths
+ * (5 / 5 / 6 = 16). Fixed-offset extraction is required by AAP &sect;0.4.1
+ * (&quot;record fields &rarr; fixed-offset {@code substring} extractions&quot;) and
+ * keeps the field boundaries on COBOL byte positions rather than re-flowing
+ * whitespace-delimited tokens.
  *
  * <p>The COBOL original opens the fixed-width file {@code ../data.dat} via
  * {@code OPEN INPUT} ({@code OpenFileSequential.cbl:L12, L36}); this Java
@@ -50,14 +56,6 @@ import java.nio.charset.StandardCharsets;
  * classpath per AAP &sect;0.4.1 row 11, replacing the COBOL sequential
  * {@code READ ... AT END SET EOF-T TO TRUE} loop with a
  * {@link BufferedReader#readLine()} iteration.
- *
- * <p>Java's {@code %-Ns} format left-justifies and right-pads with spaces but
- * does NOT truncate. For the 36 records in the fixture this faithfully
- * preserves the COBOL data: the two records whose {@code DET-TIME} token is six
- * characters ({@code DATa45}, {@code DATA50}) emit a 37-character line instead
- * of 36, and the single record whose {@code DET-NUM} token is five characters
- * ({@code 02061}) is right-padded to the COBOL six-character width
- * ({@code "02061 "}).
  *
  * <p>The COBOL {@code FILE STATUS} check
  * ({@code OpenFileSequential.cbl:L38-41}) that aborts with an error message
@@ -96,6 +94,15 @@ public class OpenFileSequentialApplication implements CommandLineRunner {
      * ({@code OpenFileSequential.cbl:L12}), per AAP &sect;0.4.1 row 11.
      */
     private static final String DATA_RESOURCE = "data.txt";
+
+    /**
+     * Fixed width, in characters, of the COBOL {@code DETAILS} record:
+     * {@code DET-ID PIC X(5)} + {@code DET-TIME PIC X(5)} + {@code DET-NUM PIC X(6)}
+     * = 16 ({@code OpenFileSequential.cbl:L21-26}). Each fixture line is normalized
+     * to this width before fixed-offset field extraction, reproducing how a COBOL
+     * line-sequential {@code READ} fills a fixed-length record.
+     */
+    private static final int RECORD_LENGTH = 16;
 
     /**
      * Error message mirroring the COBOL literal on
@@ -230,15 +237,21 @@ public class OpenFileSequentialApplication implements CommandLineRunner {
             eof = false; // SET EOF-F TO TRUE (more records expected)
             String line;
             while (isEofFalse() && (line = br.readLine()) != null) {
-                // COBOL: the DETAILS record is a fixed 16-char layout
-                // (DET-ID 5 + DET-TIME 5 + DET-NUM 6). The data.txt fixture is
-                // whitespace-delimited, so each line is tokenized into the three
-                // record fields; absent tokens default to the empty string so a
-                // short line never throws ArrayIndexOutOfBoundsException.
-                String[] tokens = line.trim().split("\\s+");
-                detId   = tokens.length > 0 ? tokens[0] : "";
-                detTime = tokens.length > 1 ? tokens[1] : "";
-                detNum  = tokens.length > 2 ? tokens[2] : "";
+                // COBOL reads each record into the fixed 16-char DETAILS layout
+                // (DET-ID 5 + DET-TIME 5 + DET-NUM 6). A line-sequential READ
+                // right-pads a short line with spaces and truncates a long line to
+                // the record width, so normalize the source line to exactly
+                // RECORD_LENGTH characters before fixed-offset extraction.
+                String record = padOrTruncate(line, RECORD_LENGTH);
+                // Fixed-offset field extraction on the COBOL byte positions of the
+                // DETAILS record. COBOL columns are 1-based; Java substring uses
+                // 0-based, end-exclusive bounds:
+                //   DET-ID   cols 1-5   -> [0, 5)
+                //   DET-TIME cols 6-10  -> [5, 10)
+                //   DET-NUM  cols 11-16 -> [10, 16)
+                detId   = record.substring(0, 5);
+                detTime = record.substring(5, 10);
+                detNum  = record.substring(10, 16);
                 // COBOL: NOT AT END -> PERFORM DISPLAY-DET-S THROUGH DISPLAY-DET-E
                 displayDetS();
             }
@@ -247,22 +260,41 @@ public class OpenFileSequentialApplication implements CommandLineRunner {
     }
 
     /**
+     * Normalizes a source line to a fixed COBOL record width, reproducing how a
+     * COBOL line-sequential {@code READ} populates a fixed-length record: a shorter
+     * line is right-padded with spaces, a longer line is truncated to the record
+     * width.
+     *
+     * @param line   the raw line read from the fixture (never {@code null})
+     * @param length the COBOL record width in characters
+     * @return the line normalized to exactly {@code length} characters
+     */
+    private static String padOrTruncate(String line, int length) {
+        if (line.length() >= length) {
+            return line.substring(0, length);
+        }
+        StringBuilder padded = new StringBuilder(length);
+        padded.append(line);
+        while (padded.length() < length) {
+            padded.append(' ');
+        }
+        return padded.toString();
+    }
+
+    /**
      * Translation of the COBOL {@code DISPLAY-DET-S} paragraph in the
      * {@code DISPAY-DET SECTION} (the {@code DISPAY} typo is preserved verbatim
      * from the source) on {@code OpenFileSequential.cbl:L64-67}:
      * {@code DISPLAY "ID: " DET-ID " STR: " DET-TIME " DET-NUM: " DET-NUM.}.
      *
-     * <p>The COBOL {@code PIC X} field widths are enforced via {@code %-5s}
-     * ({@code DET-ID}, {@code DET-TIME}) and {@code %-6s} ({@code DET-NUM}).
-     * Java's {@code %-Ns} format left-aligns and right-pads with spaces but
-     * does NOT truncate, so a token longer than its declared width is emitted
-     * in full (faithfully preserving the COBOL data) while shorter tokens are
-     * space-padded to the COBOL width.
+     * <p>The {@code DET-ID}, {@code DET-TIME} and {@code DET-NUM} values are
+     * already exactly 5, 5 and 6 characters wide because they are extracted by
+     * fixed COBOL byte offsets from the 16-character normalized record in
+     * {@link #run(String...)}; the COBOL group {@code DISPLAY} concatenates the
+     * intervening string literals with these fixed-width fields, so this method
+     * emits the fields verbatim with no additional formatting.
      */
     private void displayDetS() {
-        String detIdPad   = String.format("%-5s", detId);
-        String detTimePad = String.format("%-5s", detTime);
-        String detNumPad  = String.format("%-6s", detNum);
-        System.out.println("ID: " + detIdPad + " STR: " + detTimePad + " DET-NUM: " + detNumPad);
+        System.out.println("ID: " + detId + " STR: " + detTime + " DET-NUM: " + detNum);
     }
 }

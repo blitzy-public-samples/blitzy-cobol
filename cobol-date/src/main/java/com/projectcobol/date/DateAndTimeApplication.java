@@ -37,20 +37,24 @@ import java.time.format.DateTimeFormatter;
  * across grouped working-storage buffers with {@code STRING} and {@code MOVE}.
  * The program emits five fixed-format lines to stdout.</p>
  *
- * <p>This Java translation preserves the COBOL behavior exactly, with a single
- * AAP-mandated semantic mapping: the COBOL
- * {@code STRING ... DELIMITED BY SPACE INTO W-BATCH-COMPLET} maps to
- * {@link String#join(CharSequence, CharSequence...)} with a single-space
- * delimiter, producing a space-separated date/time pair. The COBOL
- * {@code ACCEPT}-from-clock verbs map to the idiomatic {@code java.time} API:
- * {@link LocalTime#now()} formatted with {@code HHmmssSS} and
- * {@link LocalDate#now()} formatted with {@code yyyyMMdd}, each yielding the
- * 8-character output the COBOL runtime produces.</p>
+ * <p>This Java translation preserves the COBOL behavior exactly (byte-for-byte,
+ * per AAP &sect;0.7.1). In particular the COBOL
+ * {@code STRING W-DATE DELIMITED BY SPACE W-TIME DELIMITED BY SPACE INTO
+ * W-BATCH-COMPLET} concatenates the two operands with NO embedded separator:
+ * {@code DELIMITED BY SPACE} controls where copying STOPS within each source
+ * operand, not what is inserted into the destination, and since both operands are
+ * eight non-space digits the result is the plain concatenation
+ * {@code W-DATE || W-TIME} (16 digits). The COBOL {@code ACCEPT}-from-clock verbs
+ * map to the idiomatic {@code java.time} API: {@link LocalTime#now()} formatted
+ * with {@code HHmmssSS} and {@link LocalDate#now()} formatted with
+ * {@code yyyyMMdd}, each yielding the 8-character output the COBOL runtime
+ * produces.</p>
  *
  * <p>COBOL &rarr; Java translation rules applied:</p>
  * <ul>
  *   <li>{@code 01 W-BATCH-COMPLET PIC X(16)} &rarr; local {@code String wBatchComplet}
- *       populated via {@code String.join(" ", wDate, wTime)}.</li>
+ *       populated via direct concatenation {@code wDate + wTime} (the
+ *       {@code STRING ... DELIMITED BY SPACE} inserts no separator).</li>
  *   <li>{@code 01 W-BATCH-TEST PIC X(16)} &rarr; local {@code String wBatchTest}
  *       populated via direct concatenation {@code wDate + wTime} (group-level MOVE).</li>
  *   <li>{@code 01 W-BATCH. 03 W-DATE PIC X(8). 03 W-TIME PIC X(8).} &rarr; two local
@@ -141,14 +145,22 @@ public class DateAndTimeApplication implements CommandLineRunner {
         //               W-TIME OF W-BATCH DELIMITED BY SPACE
         //          INTO W-BATCH-COMPLET
         //        END-STRING.                                              (DateAndTime.cbl L27-30)
-        // AAP section 0.4.1 mandates this map to String.join(" ", wDate, wTime),
-        // producing a single-space-separated date/time pair.
-        String wBatchComplet = String.join(" ", wDate, wTime);
+        // COBOL STRING ... DELIMITED BY SPACE does NOT insert a separator into the
+        // destination: "DELIMITED BY <delimiter>" specifies where to STOP copying
+        // from each SOURCE operand (i.e. copy up to, but not including, the first
+        // space). Because both W-DATE (YYYYMMDD) and W-TIME (HHMMSSNN) are eight
+        // non-space digits, each is copied in full and the result is the plain
+        // concatenation W-DATE || W-TIME with no embedded space. The byte-exact
+        // behavior-preservation rule (AAP §0.7.1) takes precedence over the
+        // String.join(" ", ...) example sketched in AAP §0.4.1, which would
+        // incorrectly inject a space and produce 17 chars instead of 16.
+        String wBatchComplet = wDate + wTime;
 
         // COBOL: MOVE W-BATCH TO W-BATCH-TEST.                            (DateAndTime.cbl L32)
         // A group-level MOVE is a byte-for-byte copy of the 16-char W-BATCH structure
-        // (W-DATE concatenated with W-TIME, no separator) -- distinct from W-BATCH-COMPLET
-        // above, which carries the AAP-mandated single-space separator.
+        // (W-DATE concatenated with W-TIME, no separator). This yields the same 16-digit
+        // value as W-BATCH-COMPLET above, since the STRING ... DELIMITED BY SPACE that
+        // produced W-BATCH-COMPLET likewise inserts no separator.
         String wBatchTest = wDate + wTime;
 
         // COBOL: DISPLAY "COMPLET : " W-BATCH-COMPLET.                    (DateAndTime.cbl L34)
